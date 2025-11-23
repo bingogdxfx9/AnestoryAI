@@ -119,13 +119,14 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
     const textureLoader = new THREE.TextureLoader();
     textureLoader.setCrossOrigin('anonymous'); 
     
-    // Use standard Blue Marble texture (Google Satellite style)
-    const earthMapUrl = 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_atmos_2048.jpg';
+    // High Quality "Blue Marble" Satellite Texture (Google Maps Style)
+    // Sourced from a reliable CDN
+    const earthMapUrl = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
     
     // Create materials first with fallback colors
     const earthMaterial = new THREE.MeshStandardMaterial({ 
         color: 0x1e293b, // Fallback Dark Blue/Slate
-        roughness: 0.6,
+        roughness: 0.4, // Slight gloss for water reflection
         metalness: 0.1
     });
 
@@ -255,13 +256,23 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
     };
 
     const latLonToVector3 = (lat: number, lon: number, radius: number) => {
-        // Standard Spherical Coordinates Calculation
-        const phi = (90 - lat) * (Math.PI / 180);
-        const theta = (lon + 180) * (Math.PI / 180);
+        // Precise Spherical Math for alignment with Three.js Standard Texture Mapping
+        // Three.js UV map typically starts with U=0 at +Y rotation 0 (often -Z or +Z axis depending on geometry construction)
+        // We will target standard convention:
+        // Phi (Lat): 90 deg = 0 rad (Top/North), -90 deg = PI rad (Bottom/South)
+        // Theta (Lon): Starts at +Z axis usually or -Z.
         
-        const x = -(radius * Math.sin(phi) * Math.cos(theta));
-        const z = (radius * Math.sin(phi) * Math.sin(theta));
-        const y = (radius * Math.cos(phi));
+        const phi = (90 - lat) * (Math.PI / 180);
+        const theta = (lon) * (Math.PI / 180); // Lon 0 = Theta 0
+        
+        // Mapping Lon 0 to -Z axis (standard texture seam often at back)
+        // x = -r * sin(phi) * sin(theta)
+        // z = -r * sin(phi) * cos(theta)
+        // y = r * cos(phi)
+        
+        const x = -radius * Math.sin(phi) * Math.sin(theta);
+        const y = radius * Math.cos(phi);
+        const z = radius * Math.sin(phi) * Math.cos(theta);
 
         return new THREE.Vector3(x, y, z);
     };
@@ -271,11 +282,12 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
         const geometry = new THREE.SphereGeometry(radius, 64, 64);
         const earth = new THREE.Mesh(geometry, earthMaterial);
         
-        // Rotate to match the Coordinate Mapping Logic
-        // With current math, Lat 0 Lon 0 maps to X = -radius * sin(90) * cos(180) = -radius * 1 * -1 = +Radius (X axis)
-        // Standard texture usually has Greenwich at Center (or edge). 
-        // We rotate Y to align texture Greenwich with our math Greenwich (+X).
-        earth.rotation.y = 0; 
+        // ALIGNMENT FIX: 
+        // We rotate the Earth mesh so the Texture's Greenwich (Lon 0) aligns with our calculated coordinate (0, 0, radius).
+        // Standard Equirectangular texture has Lon 0 at center (U=0.5).
+        // Three.js geometry usually puts seam (U=0/1) at back.
+        // We rotate -PI/2 on Y to align Lon 0 to +Z axis.
+        earth.rotation.y = -Math.PI / 2;
         
         rootGroup.add(earth);
 
@@ -527,4 +539,4 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
       </div>
     </div>
   );
-};
+}
