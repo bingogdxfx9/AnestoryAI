@@ -1,20 +1,5 @@
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/firestore';
-import 'firebase/compat/analytics';
+// NOTE: Firebase SDK usage has been removed to resolve build errors related to missing module exports.
+// The application now uses LocalStorage via services/storage.ts.
+// Keeping this file as a stub to prevent import errors in other files if any remain.
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDz5UZ69OnOLrGbSjNRTIwGL1sS7NbigvQ",
-  authDomain: "anestoryai.firebaseapp.com",
-  projectId: "anestoryai",
-  storageBucket: "anestoryai.firebasestorage.app",
-  messagingSenderId: "927330435478",
-  appId: "1:927330435478:web:d0d6c70c99765ae182ddb7",
-  measurementId: "G-8MCRGVK47Q"
-};
-
-// Initialize Firebase using Compat syntax
-const app = firebase.initializeApp(firebaseConfig);
-
-// Initialize services
-export const db = firebase.firestore();
-export const analytics = firebase.analytics();
+export const db = {};
