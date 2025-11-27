@@ -58,15 +58,16 @@ const App: React.FC = () => {
     }
   }, [darkMode]);
 
-  // Load Data
+  // Load Data via Firestore Subscription
   useEffect(() => {
-    StorageService.seedIfEmpty();
-    setAncestors(StorageService.getAll());
-  }, []);
+    // Check for seed
+    StorageService.checkAndSeed();
 
-  const refreshData = () => {
-      setAncestors(StorageService.getAll());
-  };
+    const unsubscribe = StorageService.subscribe((data) => {
+        setAncestors(data);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleAddClick = () => {
     setEditingId(null);
@@ -95,7 +96,6 @@ const App: React.FC = () => {
     const shouldDelete = window.confirm(`Are you sure you want to delete ${name}? This cannot be undone.`);
     if (shouldDelete) {
       StorageService.delete(id);
-      refreshData();
       if (selectedAncestorId === id) setSelectedAncestorId(null);
     }
   };
@@ -117,7 +117,7 @@ const App: React.FC = () => {
         birthYear: data.birthYear ? parseInt(data.birthYear) : null,
         deathYear: data.deathYear ? parseInt(data.deathYear) : null,
         gender: data.gender,
-        country: data.country || undefined,
+        country: data.country || null, // Changed from undefined to null for Firestore compatibility
         fatherId: data.fatherId || null,
         motherId: data.motherId || null,
         notes: data.notes
@@ -128,20 +128,18 @@ const App: React.FC = () => {
         birthYear: data.birthYear ? parseInt(data.birthYear) : null,
         deathYear: data.deathYear ? parseInt(data.deathYear) : null,
         gender: data.gender,
-        country: data.country || undefined,
+        country: data.country || null, // Changed from undefined to null for Firestore compatibility
         fatherId: data.fatherId || null,
         motherId: data.motherId || null,
         notes: data.notes
       });
     }
-    refreshData();
     setShowForm(false);
     setScrutinizedData(null);
   };
 
   const handleUpdateFromAnalytics = (id: string, updates: Partial<Ancestor>) => {
     StorageService.update(id, updates);
-    refreshData();
   };
 
   const handleDownloadReport = async () => {
@@ -154,11 +152,9 @@ const App: React.FC = () => {
         const svgElement = document.getElementById('tree-svg') as any;
         if (svgElement) {
             const svgString = new XMLSerializer().serializeToString(svgElement);
-            // Basic cleanup to ensure namespaced tags work in img src
             const svgBlob = new Blob([svgString], {type: 'image/svg+xml;charset=utf-8'});
             const url = URL.createObjectURL(svgBlob);
             
-            // Draw to canvas to get PNG
             const img = new Image();
             img.src = url;
             await new Promise((resolve) => {
@@ -168,7 +164,7 @@ const App: React.FC = () => {
                     canvas.height = svgElement.clientHeight;
                     const ctx = canvas.getContext('2d');
                     if (ctx) {
-                        ctx.fillStyle = "#ffffff"; // White background for PDF
+                        ctx.fillStyle = "#ffffff";
                         ctx.fillRect(0, 0, canvas.width, canvas.height);
                         ctx.drawImage(img, 0, 0);
                         treeImage = canvas.toDataURL('image/png');
@@ -183,7 +179,7 @@ const App: React.FC = () => {
         console.error("Tree screenshot capture failed", e);
     }
 
-    // 2. Capture Three.js Canvas (Only if visible)
+    // 2. Capture Three.js Canvas
     if (showThreeView) {
         const canvasElement = document.getElementById('three-canvas');
         if (canvasElement) {
@@ -264,7 +260,6 @@ const App: React.FC = () => {
                 {showAnalytics ? 'Hide Analytics' : 'Show Analytics'}
              </button>
              
-             {/* Time Travel Button */}
              <button
                 onClick={() => setShowTimeTravel(true)}
                 className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-3 py-2 rounded-md font-medium transition shadow-md flex items-center text-sm"
@@ -292,15 +287,12 @@ const App: React.FC = () => {
       </header>
 
       <main className="flex-grow max-w-7xl mx-auto px-4 py-8 w-full">
-        
-        {/* Search Bar */}
         <SmartSearch 
             ancestors={ancestors} 
             onFilter={(ids) => setFilteredIds(ids)} 
             onClear={() => setFilteredIds(null)} 
         />
 
-        {/* Toggleable Analytics Dashboard */}
         {showAnalytics && (
              <div className="mb-8 animate-fade-in-down">
                  <AnalyticsDashboard ancestors={ancestors} onUpdateAncestor={handleUpdateFromAnalytics} />
@@ -312,7 +304,6 @@ const App: React.FC = () => {
           {/* Left Column: Stats & List */}
           <div className="lg:col-span-1 space-y-6">
             
-            {/* Stats Card */}
             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 transition-colors">
               <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Family Statistics</h3>
               <div className="grid grid-cols-2 gap-4 text-center">
@@ -332,7 +323,6 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* Ancestor List */}
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col max-h-[600px] transition-colors">
               <div className="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Records</h3>
@@ -344,7 +334,6 @@ const App: React.FC = () => {
                   const completenessColor = completeness === 100 ? 'bg-emerald-500' : completeness > 50 ? 'bg-yellow-500' : 'bg-red-500';
                   const hasDates = person.birthYear && person.deathYear;
                   
-                  // Dim if filtered out
                   const isMatch = !filteredIds || filteredIds.includes(person.id);
                   const opacity = isMatch ? 'opacity-100' : 'opacity-40';
 
@@ -373,7 +362,6 @@ const App: React.FC = () => {
                             </p>
                         </div>
                         <div className="flex gap-2 items-center ml-2">
-                          {/* Historical Context Button */}
                           {hasDates && (
                              <button
                                 onClick={(e) => { e.stopPropagation(); handleContextClick(person.id); }}
@@ -384,7 +372,6 @@ const App: React.FC = () => {
                              </button>
                           )}
 
-                          {/* Story Button */}
                           <button
                              onClick={(e) => { e.stopPropagation(); handleStoryClick(person.id); }}
                              className="p-1.5 text-slate-400 hover:text-purple-600 bg-slate-50 dark:bg-slate-700 hover:bg-purple-50 dark:hover:bg-purple-900 rounded-full transition opacity-0 group-hover:opacity-100"
@@ -419,10 +406,7 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column: Visualization & Tools */}
           <div className="lg:col-span-2 space-y-6">
-            
-            {/* Tree Visualization */}
             <TreeVisualization 
                 ancestors={ancestors} 
                 filteredIds={filteredIds}
@@ -430,12 +414,9 @@ const App: React.FC = () => {
             />
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Gemini AI Context - Now with modes */}
               <div className="md:col-span-1">
                  <AIHistorian selectedAncestorId={selectedAncestorId} ancestors={ancestors} />
               </div>
-              
-               {/* Relationship Tool */}
                <div className="md:col-span-1">
                  <RelationshipCalculator ancestors={ancestors} />
                </div>
@@ -445,7 +426,6 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* AI Scrutinizer Modal */}
       {showScrutinizer && (
         <DataScrutinizer 
             onCancel={() => setShowScrutinizer(false)}
@@ -453,20 +433,17 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Import Wizard Modal */}
       {showImportWizard && (
         <ImportWizard 
             onClose={() => setShowImportWizard(false)}
-            onImportComplete={refreshData}
+            onImportComplete={() => {}} // No-op, realtime listener updates automatically
         />
       )}
 
-      {/* Time Travel Modal */}
       {showTimeTravel && (
         <TimeTravelStudio onClose={() => setShowTimeTravel(false)} />
       )}
 
-      {/* 3D View Modal */}
       {showThreeView && (
         <ThreeView 
             ancestors={ancestors}
@@ -474,7 +451,6 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Story Generator Modal */}
       {showStoryModal && storyAncestorId && (
           <StoryModal 
               ancestor={ancestors.find(a => a.id === storyAncestorId)!} 
@@ -483,7 +459,6 @@ const App: React.FC = () => {
           />
       )}
 
-      {/* Context Modal */}
       {showContextModal && contextAncestorId && (
           <ContextModal
               ancestor={ancestors.find(a => a.id === contextAncestorId)!}
@@ -491,7 +466,6 @@ const App: React.FC = () => {
           />
       )}
 
-      {/* Main Form */}
       {showForm && (
         <AncestorForm 
           ancestors={ancestors}
