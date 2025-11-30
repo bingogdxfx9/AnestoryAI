@@ -1,98 +1,84 @@
+import { 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  onSnapshot, 
+  query, 
+  orderBy, 
+  serverTimestamp 
+} from 'firebase/firestore';
+import { db } from './firebase';
 import { Ancestor } from '../types';
 
-const STORAGE_KEY = 'ancestors_data';
-let listeners: ((data: Ancestor[]) => void)[] = [];
-
-const generateId = () => {
-    return Date.now().toString(36) + Math.random().toString(36).substring(2);
-};
-
-// Helper to get data
-const getLocalData = (): Ancestor[] => {
-  try {
-    const str = localStorage.getItem(STORAGE_KEY);
-    return str ? JSON.parse(str) : [];
-  } catch (e) {
-    console.error("Error parsing local storage", e);
-    return [];
-  }
-};
-
-// Helper to set data
-const setLocalData = (data: Ancestor[]) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    notifyListeners();
-  } catch (e) {
-    console.error("Error saving to local storage", e);
-  }
-};
-
-const notifyListeners = () => {
-  const data = getLocalData();
-  listeners.forEach(cb => cb(data));
-};
+const COLLECTION = 'ancestors';
 
 export const StorageService = {
-  // Subscribe to updates (simulating real-time behavior)
+  // Subscribe to updates (Real-time)
   subscribe: (callback: (data: Ancestor[]) => void) => {
-    listeners.push(callback);
-    // Initial data
-    callback(getLocalData());
+    // Order by dateAdded so new ones appear at the bottom/top reliably
+    const q = query(collection(db, COLLECTION), orderBy('dateAdded', 'desc'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          name: d.name,
+          birthYear: d.birthYear,
+          deathYear: d.deathYear,
+          gender: d.gender,
+          country: d.country,
+          fatherId: d.fatherId,
+          motherId: d.motherId,
+          notes: d.notes,
+          dateAdded: d.dateAdded?.toMillis ? d.dateAdded.toMillis() : Date.now()
+        } as Ancestor;
+      });
+      callback(data);
+    }, (error) => {
+      console.error("Firestore subscription error:", error);
+    });
 
-    return () => {
-        listeners = listeners.filter(l => l !== callback);
-    };
+    return unsubscribe;
   },
 
   // Add new ancestor
   add: async (data: Omit<Ancestor, 'id' | 'dateAdded'>) => {
-    const ancestors = getLocalData();
-    const newAncestor: Ancestor = {
-      ...data,
-      id: generateId(),
-      dateAdded: Date.now()
-    };
-    ancestors.push(newAncestor);
-    setLocalData(ancestors);
+    try {
+      await addDoc(collection(db, COLLECTION), {
+        ...data,
+        dateAdded: serverTimestamp()
+      });
+    } catch (e) {
+      console.error("Error adding document: ", e);
+    }
   },
 
   // Update ancestor
   update: async (id: string, updates: Partial<Ancestor>) => {
-    let ancestors = getLocalData();
-    ancestors = ancestors.map(a => a.id === id ? { ...a, ...updates } : a);
-    setLocalData(ancestors);
+    try {
+      const docRef = doc(db, COLLECTION, id);
+      await updateDoc(docRef, updates);
+    } catch (e) {
+      console.error("Error updating document: ", e);
+    }
   },
 
   // Delete ancestor
   delete: async (id: string) => {
-    let ancestors = getLocalData();
-    ancestors = ancestors.filter(a => a.id !== id);
-    setLocalData(ancestors);
+    try {
+      await deleteDoc(doc(db, COLLECTION, id));
+    } catch (e) {
+      console.error("Error deleting document: ", e);
+    }
   },
 
-  // Seed data if empty (Utility)
+  // Check and Seed (Optional, typically for local dev but kept for structure)
   checkAndSeed: async () => {
-    const ancestors = getLocalData();
-    
-    if (ancestors.length === 0) {
-        console.log("Seeding Local Database...");
-        
-        const id1 = generateId();
-        const id2 = generateId();
-        const id3 = generateId();
-        const id4 = generateId();
-        const id5 = generateId();
-
-        const seedData: Ancestor[] = [
-            { id: id1, name: "Arthur Smith", birthYear: 1920, deathYear: 1995, gender: 'Male', country: 'United Kingdom', fatherId: null, motherId: null, notes: "Paternal Grandfather", dateAdded: Date.now() },
-            { id: id2, name: "Martha Smith", birthYear: 1925, deathYear: 2005, gender: 'Female', country: 'United Kingdom', fatherId: null, motherId: null, notes: "Paternal Grandmother", dateAdded: Date.now() },
-            { id: id3, name: "John Smith", birthYear: 1950, deathYear: null, gender: 'Male', country: 'United States', fatherId: id1, motherId: id2, notes: "Father", dateAdded: Date.now() },
-            { id: id4, name: "Jane Doe", birthYear: 1952, deathYear: null, gender: 'Female', country: 'United States', fatherId: null, motherId: null, notes: "Mother", dateAdded: Date.now() },
-            { id: id5, name: "Sam Smith", birthYear: 1980, deathYear: null, gender: 'Male', country: 'Canada', fatherId: id3, motherId: id4, notes: "Self", dateAdded: Date.now() },
-        ];
-
-        setLocalData(seedData);
-    }
+    // In a real Firestore app, we usually don't auto-seed on every load 
+    // to prevent duplicate data if the check fails or is slow.
+    // Leaving empty or manual trigger recommended.
   }
 };

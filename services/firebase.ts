@@ -1,5 +1,17 @@
-// NOTE: Firebase SDK usage has been removed to resolve build errors related to missing module exports.
-// The application now uses LocalStorage via services/storage.ts.
-// Keeping this file as a stub to prevent import errors in other files if any remain.
+import { initializeApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
-export const db = {};
+const firebaseConfig = {
+  apiKey: "AIzaSyDz5UZ69OnOLrGbSjNRTIwGL1sS7NbigvQ",
+  authDomain: "anestoryai.firebaseapp.com",
+  projectId: "anestoryai",
+  storageBucket: "anestoryai.firebasestorage.app",
+  messagingSenderId: "927330435478",
+  appId: "1:927330435478:web:d0d6c70c99765ae182ddb7",
+  measurementId: "G-8MCRGVK47Q"
+};
+
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app);
+export const auth = getAuth(app);
