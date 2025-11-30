@@ -277,7 +277,7 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
             return "6 4";
         })
         .attr("opacity", (d: any) => {
-            if (filteredIds) return 0.1; // Fade background boxes during search
+            if (filteredIds) return 0.05; // Fade background boxes heavily during search
             return 1;
         });
 
@@ -291,7 +291,8 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
       .attr("stroke", (d: any) => {
         if (hoverId && (d.source.data.id === hoverId || d.target.data.id === hoverId)) return "#818cf8"; // Hover
         if (filteredIds) {
-             return (filteredIds.includes(d.source.data.id) && filteredIds.includes(d.target.data.id)) ? "#6366f1" : "#475569";
+             // Distinct Amber-500 color for links matching filter
+             return (filteredIds.includes(d.source.data.id) && filteredIds.includes(d.target.data.id)) ? "#f59e0b" : "#475569";
         }
         if (!focusId) {
             // Apply generation color to links if in generation mode
@@ -313,6 +314,7 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
       })
       .attr("opacity", (d: any) => {
         if (filteredIds) {
+             // Dim non-matching links significantly
              return (filteredIds.includes(d.source.data.id) && filteredIds.includes(d.target.data.id)) ? 1 : 0.1;
         }
         if (!focusId) return 1;
@@ -384,7 +386,8 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
       })
       .attr("stroke", (d: any) => {
         if (hoverId === d.data.id) return "#818cf8"; // Hover Highlight
-        if (filteredIds) return filteredIds.includes(d.data.id) ? "#4f46e5" : "#e2e8f0";
+        // Distinct Amber-500 for search matches
+        if (filteredIds) return filteredIds.includes(d.data.id) ? "#f59e0b" : "#e2e8f0";
         if (d.data.id === focusId) return "#4f46e5"; 
         if (ancestorIds.has(d.data.id)) return "#ea580c"; 
         if (descendantIds.has(d.data.id)) return "#16a34a"; 
@@ -397,7 +400,7 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
         if (ancestorIds.has(d.data.id) || descendantIds.has(d.data.id)) return 2.5;
         return 1.5;
       })
-      .attr("opacity", (d: any) => isNodeActive(d) ? 1 : 0.2)
+      .attr("opacity", (d: any) => isNodeActive(d) ? 1 : 0.1) // Dim non-matches
       .style("cursor", "pointer");
 
     nodes.append("text")
@@ -410,7 +413,7 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
       // Use classes for dynamic fill logic
       .attr("class", "fill-slate-800 dark:fill-slate-200 pointer-events-none")
       .style("text-shadow", "0 1px 0 rgba(255,255,255,0.2)")
-      .attr("opacity", (d: any) => isNodeActive(d) ? 1 : 0.2);
+      .attr("opacity", (d: any) => isNodeActive(d) ? 1 : 0.1); // Dim non-matches
 
     nodes.append("title")
       .text((d: any) => `${d.data.name}\nBorn: ${d.data.data.birthYear || '?'}\nCountry: ${d.data.data.country || 'Unknown'}`);
@@ -473,7 +476,7 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
              </div>
 
              {filteredIds && (
-                 <div className="text-xs font-bold text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/50 px-2 py-1 rounded">
+                 <div className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/50 px-2 py-1 rounded border border-amber-200 dark:border-amber-800">
                      Filtered View ({filteredIds.length} matches)
                  </div>
             )}

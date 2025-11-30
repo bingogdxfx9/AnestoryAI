@@ -258,13 +258,16 @@ export const generateTimeline = async (ancestor: Ancestor): Promise<TimelineEven
             contents: prompt,
             config: {
                 tools: [{ googleSearch: {} }],
-                responseMimeType: "application/json"
+                // responseMimeType: "application/json" // REMOVED: Cannot be used with tools
             }
         });
 
         const text = response.text || "[]";
-        const cleanText = text.replace(/```json|```/g, "").trim();
-        return JSON.parse(cleanText);
+        // Extract JSON from potential markdown code block
+        const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || text.match(/\[[\s\S]*\]/);
+        const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : text.replace(/```json|```/g, "").trim();
+        
+        return JSON.parse(jsonStr);
     } catch (e) {
         console.error("Timeline Generation Error", e);
         return [];
@@ -298,13 +301,16 @@ export const predictSES = async (ancestor: Ancestor): Promise<SESResult> => {
             contents: prompt,
             config: {
                 tools: [{ googleSearch: {} }],
-                responseMimeType: "application/json"
+                // responseMimeType: "application/json" // REMOVED: Cannot be used with tools
             }
         });
 
         const text = response.text || "{}";
-        const cleanText = text.replace(/```json|```/g, "").trim();
-        return JSON.parse(cleanText);
+        // Extract JSON from potential markdown code block
+        const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || text.match(/\{[\s\S]*\}/);
+        const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : text.replace(/```json|```/g, "").trim();
+
+        return JSON.parse(jsonStr);
     } catch (e) {
         console.error("SES Prediction Error", e);
         return { socialClass: "Analysis Failed", reasoning: "AI error." };
