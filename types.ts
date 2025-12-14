@@ -6,11 +6,12 @@ export interface Ancestor {
   birthYear: number | null;
   deathYear: number | null;
   gender: Gender;
-  country?: string; // New field
+  country?: string; 
   fatherId: string | null;
   motherId: string | null;
   notes: string;
-  dateAdded: number; // Unix timestamp to mock Firestore Timestamp
+  photoUrl?: string; // New field for avatar images
+  dateAdded: number; 
 }
 
 export interface AncestorFormData {
@@ -18,38 +19,12 @@ export interface AncestorFormData {
   birthYear: string;
   deathYear: string;
   gender: Gender;
-  country: string; // New field
+  country: string;
   fatherId: string;
   motherId: string;
   notes: string;
+  photoUrl?: string;
 }
-
-export interface TreeLink {
-  source: HierarchyNode;
-  target: HierarchyNode;
-}
-
-export interface HierarchyNode {
-  name: string;
-  id: string;
-  data: Ancestor;
-  children?: HierarchyNode[];
-  _children?: HierarchyNode[]; // For collapsing
-}
-
-export type RelationType = 
-  | 'Self' 
-  | 'Parent' 
-  | 'Child' 
-  | 'Sibling' 
-  | 'Spouse' 
-  | 'Grandparent' 
-  | 'Grandchild' 
-  | 'Aunt/Uncle' 
-  | 'Niece/Nephew' 
-  | 'Cousin' 
-  | 'Distant Relative' 
-  | 'No Known Relation';
 
 export interface TimelineEvent {
   year: number;

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import * as d3 from 'd3';
+import { select, scaleBand, max, scaleLinear, axisBottom, axisLeft } from 'd3';
 import { Ancestor } from '../types';
 import { getLifespanDistribution, getAverageGenerationSpan, findPotentialDuplicates, findLocalAnomalies, Anomaly } from '../utils/genealogy';
 import { getPredictiveAnalysis, PredictionResult } from '../services/geminiService';
@@ -24,26 +24,26 @@ export const AnalyticsDashboard: React.FC<Props> = ({ ancestors, onUpdateAncesto
     if (!histogramRef.current || lifespanData.length === 0) return;
 
     // Clear prev
-    d3.select(histogramRef.current).selectAll("*").remove();
+    select(histogramRef.current).selectAll("*").remove();
 
     const margin = { top: 20, right: 20, bottom: 40, left: 40 };
     const width = histogramRef.current.clientWidth - margin.left - margin.right;
     const height = 250 - margin.top - margin.bottom;
 
-    const svg = d3.select(histogramRef.current)
+    const svg = select(histogramRef.current)
         .attr("height", 250)
         .append("g")
         .attr("transform", `translate(${margin.left},${margin.top})`);
 
     // X Scale
-    const x = d3.scaleBand()
+    const x = scaleBand()
         .range([0, width])
         .domain(lifespanData.map(d => d.label))
         .padding(0.2);
 
     // Y Scale
-    const maxCount = d3.max(lifespanData, d => d.count) || 5;
-    const y = d3.scaleLinear()
+    const maxCount = max(lifespanData, d => d.count) || 5;
+    const y = scaleLinear()
         .domain([0, maxCount])
         .range([height, 0]);
 
@@ -62,16 +62,16 @@ export const AnalyticsDashboard: React.FC<Props> = ({ ancestors, onUpdateAncesto
     // X Axis
     const xAxisGroup = svg.append("g")
         .attr("transform", `translate(0,${height})`)
-        .call(d3.axisBottom(x));
+        .call(axisBottom(x));
     
     // Y Axis
     const yAxisGroup = svg.append("g")
-        .call(d3.axisLeft(y).ticks(5));
+        .call(axisLeft(y).ticks(5));
     
     // Gridlines
     svg.append("g")
         .attr("class", "grid")
-        .call(d3.axisLeft(y).ticks(5).tickSize(-width).tickFormat(() => ""))
+        .call(axisLeft(y).ticks(5).tickSize(-width).tickFormat(() => ""))
         .attr("stroke-opacity", 0.1)
         .attr("class", "stroke-slate-300 dark:stroke-slate-600");
 

@@ -1,48 +1,67 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AncestryAI</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
     <script>
       tailwind.config = {
         darkMode: 'class',
         theme: {
           extend: {
             colors: {
-              slate: {
-                850: '#1e293b',
+              background: {
+                DEFAULT: '#0f172a', // Slate 900
+                light: '#f8fafc',
+              },
+              surface: {
+                DEFAULT: '#1e293b', // Slate 800
+                light: '#334155',
+              },
+              primary: {
+                DEFAULT: '#2563EB', // Blue 600
+                dark: '#1d4ed8',
+              },
+              accent: {
+                teal: '#14b8a6',
+                pink: '#ec4899'
               }
+            },
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              display: ['Noto Sans', 'sans-serif'],
             }
           }
         }
       }
     </script>
     <style>
-      /* Custom scrollbar for better aesthetics */
+      body {
+        background-color: #0f172a;
+        color: #f8fafc;
+      }
       ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
       }
       ::-webkit-scrollbar-track {
-        background: #f1f5f9; 
-      }
-      .dark ::-webkit-scrollbar-track {
-        background: #1e293b;
+        background: #0f172a; 
       }
       ::-webkit-scrollbar-thumb {
-        background: #94a3b8; 
-        border-radius: 4px;
+        background: #334155; 
+        border-radius: 3px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #64748b; 
+        background: #475569; 
       }
-      .dark ::-webkit-scrollbar-thumb {
-        background: #475569;
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
       }
-      .dark ::-webkit-scrollbar-thumb:hover {
-        background: #64748b; 
+      .filled-icon {
+        font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
       }
     </style>
   <script type="importmap">
@@ -55,17 +74,13 @@
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
     "d3": "https://aistudiocdn.com/d3@^7.9.0",
     "jspdf": "https://aistudiocdn.com/jspdf@^2.5.1",
-    "three": "https://aistudiocdn.com/three@^0.160.0",
-    "firebase/app": "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js",
-    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js",
-    "firebase/auth": "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js",
-    "firebase/analytics": "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js",
-    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
+    "three": "https://aistudiocdn.com/three@^0.160.0"
   }
 }
 </script>
 </head>
-  <body class="bg-slate-50 text-slate-900 font-sans antialiased dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200">
-    <div id="root"></div>
+  <body class="antialiased transition-colors duration-200 h-screen overflow-hidden">
+    <div id="root" class="h-full"></div>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>
