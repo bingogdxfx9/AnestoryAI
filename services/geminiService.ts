@@ -182,8 +182,10 @@ export const parseNaturalLanguageData = async (text: string): Promise<any> => {
 export interface PredictionResult {
     ancestorId: string;
     field: string;
+    currentValue?: any;
     predictedValue: any;
     reasoning: string;
+    type: 'Missing' | 'Anomaly';
 }
 
 export const getPredictiveAnalysis = async (ancestors: Ancestor[]): Promise<PredictionResult[]> => {
@@ -201,12 +203,30 @@ export const getPredictiveAnalysis = async (ancestors: Ancestor[]): Promise<Pred
 
     const prompt = `
     Analyze this genealogy tree data (JSON below).
-    Identify missing birth years or death years.
-    Using logic (generation gaps, family structure) AND historical trends (via Google Search if needed), predict the missing values.
+    Perform two tasks:
+    1. Identify missing birth years or death years. Predict them based on family structure (generation gaps) and historical trends.
+    2. Identify logical or historical anomalies (e.g., parent born after child, lifespan > 110 years without verification, born in future, born in a place incompatible with era). Suggest corrections.
     
+    Use Google Search to verify historical plausibility if needed.
+
     Return a JSON array ONLY in the following format:
     [
-      { "ancestorId": "id", "field": "birthYear", "predictedValue": 1900, "reasoning": "Child born 1925..." }
+      { 
+        "ancestorId": "id", 
+        "field": "birthYear", 
+        "currentValue": null, 
+        "predictedValue": 1900, 
+        "reasoning": "Child born 1925...", 
+        "type": "Missing" 
+      },
+      { 
+        "ancestorId": "id", 
+        "field": "deathYear", 
+        "currentValue": 1800, 
+        "predictedValue": 1900, 
+        "reasoning": "Death year 1800 is before birth year 1820.", 
+        "type": "Anomaly" 
+      }
     ]
     
     Only provide predictions with high confidence or clear logical basis.

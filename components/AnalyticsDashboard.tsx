@@ -123,7 +123,7 @@ export const AnalyticsDashboard: React.FC<Props> = ({ ancestors, onUpdateAncesto
                 <div className="bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500 p-4 rounded shadow-sm">
                     <h4 className="font-bold text-red-800 dark:text-red-200 text-sm flex items-center">
                         <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        Logic Anomalies
+                        Logic Anomalies (Local)
                     </h4>
                     <ul className="mt-2 text-xs text-red-700 dark:text-red-300 list-disc list-inside max-h-32 overflow-y-auto">
                         {localAnomalies.map((anom, idx) => (
@@ -140,39 +140,58 @@ export const AnalyticsDashboard: React.FC<Props> = ({ ancestors, onUpdateAncesto
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 transition-colors">
              <div className="flex justify-between items-center mb-4">
                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 flex items-center">
-                     <span className="mr-2">🔎</span> Predictive Gap Filler
+                     <span className="mr-2">🔎</span> Predictive Gap Filler & Consistency Checker
                  </h3>
                  <button 
                     onClick={runPredictiveCheck}
                     disabled={loadingAi}
                     className="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-medium hover:bg-indigo-700 transition disabled:bg-indigo-300"
                  >
-                    {loadingAi ? 'Analyzing Tree...' : 'Run AI Consistency Check'}
+                    {loadingAi ? 'Analyzing Tree...' : 'Run AI Analysis'}
                  </button>
              </div>
              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                 Uses historical data and logical inference to find gaps and suggest missing dates.
+                 Uses AI and historical grounding to find gaps, suggest dates, and identify anomalies.
              </p>
 
              {aiPredictions.length > 0 ? (
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                      {aiPredictions.map((pred, i) => {
                          const person = ancestors.find(a => a.id === pred.ancestorId);
+                         const isAnomaly = pred.type === 'Anomaly';
                          return (
-                            <div key={i} className="border border-indigo-100 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-lg flex flex-col justify-between">
+                            <div key={i} className={`border p-3 rounded-lg flex flex-col justify-between ${
+                                isAnomaly 
+                                ? 'border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800' 
+                                : 'border-indigo-100 bg-indigo-50 dark:bg-indigo-900/30 dark:border-indigo-800'
+                            }`}>
                                 <div>
-                                    <p className="font-bold text-indigo-900 dark:text-indigo-200 text-sm">{person?.name || 'Unknown'}</p>
-                                    <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1">
-                                        Missing <strong>{pred.field}</strong>. 
-                                        Est: <span className="font-mono bg-white dark:bg-slate-900 px-1 rounded">{pred.predictedValue}</span>
+                                    <div className="flex justify-between">
+                                        <p className={`font-bold text-sm ${isAnomaly ? 'text-red-900 dark:text-red-200' : 'text-indigo-900 dark:text-indigo-200'}`}>
+                                            {person?.name || 'Unknown'}
+                                        </p>
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                                            isAnomaly ? 'bg-red-200 text-red-800' : 'bg-indigo-200 text-indigo-800'
+                                        }`}>
+                                            {pred.type}
+                                        </span>
+                                    </div>
+                                    <p className={`text-xs mt-1 ${isAnomaly ? 'text-red-700 dark:text-red-300' : 'text-indigo-700 dark:text-indigo-300'}`}>
+                                        {isAnomaly ? 'Anomaly in ' : 'Missing '} <strong>{pred.field}</strong>.
+                                        {isAnomaly && pred.currentValue && <span className="block">Current: {pred.currentValue}</span>}
+                                        <span className="block mt-1">Suggested: <span className="font-mono bg-white dark:bg-slate-900 px-1 rounded">{pred.predictedValue}</span></span>
                                     </p>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 italic">"{pred.reasoning}"</p>
                                 </div>
                                 <button 
                                     onClick={() => handleApplyPrediction(pred)}
-                                    className="mt-3 w-full py-1 bg-white dark:bg-slate-700 border border-indigo-200 dark:border-indigo-600 text-indigo-600 dark:text-indigo-300 text-xs font-bold rounded hover:bg-indigo-100 dark:hover:bg-slate-600"
+                                    className={`mt-3 w-full py-1 text-xs font-bold rounded border transition ${
+                                        isAnomaly
+                                        ? 'bg-white border-red-200 text-red-600 hover:bg-red-100 dark:bg-slate-800 dark:border-red-900 dark:text-red-300'
+                                        : 'bg-white border-indigo-200 text-indigo-600 hover:bg-indigo-100 dark:bg-slate-800 dark:border-indigo-600 dark:text-indigo-300'
+                                    }`}
                                 >
-                                    Apply Fix
+                                    Apply Correction
                                 </button>
                             </div>
                          )

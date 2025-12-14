@@ -9,6 +9,25 @@ interface Props {
 
 type ViewMode = 'tree' | 'globe' | 'map';
 
+// Extended type to include generation info for UI
+interface AncestorWithGen extends Ancestor {
+  gen?: number;
+}
+
+// Distinct Color Palette for Generations (Spectrum)
+const GENERATION_COLORS = [
+    0xef4444, // Gen 0: Red
+    0xf97316, // Gen 1: Orange
+    0xf59e0b, // Gen 2: Amber
+    0x84cc16, // Gen 3: Lime
+    0x10b981, // Gen 4: Emerald
+    0x06b6d4, // Gen 5: Cyan
+    0x3b82f6, // Gen 6: Blue
+    0x8b5cf6, // Gen 7: Violet
+    0xd946ef, // Gen 8: Fuchsia
+    0xf43f5e  // Gen 9: Rose
+];
+
 // Coordinate mapping
 const COUNTRY_COORDS: Record<string, { lat: number; lon: number }> = {
   "United States": { lat: 37.0902, lon: -95.7129 },
@@ -68,7 +87,7 @@ const COUNTRY_COORDS: Record<string, { lat: number; lon: number }> = {
 
 export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [selectedInfo, setSelectedInfo] = useState<Ancestor | null>(null);
+  const [selectedInfo, setSelectedInfo] = useState<AncestorWithGen | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('tree');
   
   // Shared state for camera controls
@@ -120,7 +139,6 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
     textureLoader.setCrossOrigin('anonymous'); 
     
     // High Quality "Blue Marble" Satellite Texture (Google Maps Style)
-    // Sourced from a reliable CDN
     const earthMapUrl = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
     
     // Create materials first with fallback colors
@@ -215,14 +233,14 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
             const zPos = (gen * SPACING_Z);
     
             const geometry = new THREE.SphereGeometry(1, 32, 32);
-            let color = 0x94a3b8;
-            if (person.gender === 'Male') color = 0x3b82f6; 
-            if (person.gender === 'Female') color = 0xec4899; 
+            
+            // Color based on generation
+            const color = GENERATION_COLORS[gen % GENERATION_COLORS.length];
             
             const material = new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.2 });
             const sphere = new THREE.Mesh(geometry, material);
             sphere.position.set(xPos, 0, zPos);
-            sphere.userData = { id: person.id, name: person.name, originalColor: color };
+            sphere.userData = { id: person.id, name: person.name, originalColor: color, gen: gen };
             
             nodeGroup.add(sphere);
             interactables.push(sphere);
@@ -256,19 +274,8 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
     };
 
     const latLonToVector3 = (lat: number, lon: number, radius: number) => {
-        // Precise Spherical Math for alignment with Three.js Standard Texture Mapping
-        // Three.js UV map typically starts with U=0 at +Y rotation 0 (often -Z or +Z axis depending on geometry construction)
-        // We will target standard convention:
-        // Phi (Lat): 90 deg = 0 rad (Top/North), -90 deg = PI rad (Bottom/South)
-        // Theta (Lon): Starts at +Z axis usually or -Z.
-        
         const phi = (90 - lat) * (Math.PI / 180);
-        const theta = (lon) * (Math.PI / 180); // Lon 0 = Theta 0
-        
-        // Mapping Lon 0 to -Z axis (standard texture seam often at back)
-        // x = -r * sin(phi) * sin(theta)
-        // z = -r * sin(phi) * cos(theta)
-        // y = r * cos(phi)
+        const theta = (lon) * (Math.PI / 180);
         
         const x = -radius * Math.sin(phi) * Math.sin(theta);
         const y = radius * Math.cos(phi);
@@ -277,16 +284,69 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
         return new THREE.Vector3(x, y, z);
     };
 
+    // --- Helper to draw migration arcs ---
+    const createMigrationLinks = (
+        ancestorList: Ancestor[], 
+        posMapper: (lat: number, lon: number) => THREE.Vector3,
+        isGlobe: boolean
+    ): THREE.Group => {
+        const linkGroup = new THREE.Group();
+        // Use a semi-transparent material for migration paths
+        const material = new THREE.LineBasicMaterial({ 
+            color: 0x34d399, // Emerald-400
+            transparent: true, 
+            opacity: 0.4 
+        });
+
+        ancestorList.forEach(person => {
+            // If person has no country, skip
+            if (!person.country || !COUNTRY_COORDS[person.country]) return;
+            
+            const childPos = posMapper(
+                COUNTRY_COORDS[person.country].lat, 
+                COUNTRY_COORDS[person.country].lon
+            );
+
+            // Draw line to parents
+            [person.fatherId, person.motherId].forEach(pid => {
+                if (pid) {
+                    const parent = ancestorList.find(a => a.id === pid);
+                    if (parent && parent.country && COUNTRY_COORDS[parent.country]) {
+                        // Skip if same country to avoid clutter (or we could draw small loops)
+                        if (parent.country === person.country) return;
+
+                        const parentPos = posMapper(
+                            COUNTRY_COORDS[parent.country].lat, 
+                            COUNTRY_COORDS[parent.country].lon
+                        );
+
+                        if (isGlobe) {
+                            // Draw Great Circle-ish Arc
+                            const dist = childPos.distanceTo(parentPos);
+                            const mid = childPos.clone().add(parentPos).multiplyScalar(0.5);
+                            mid.normalize().multiplyScalar(15 + (dist * 0.5)); // 15 is globe radius
+                            
+                            const curve = new THREE.QuadraticBezierCurve3(childPos, mid, parentPos);
+                            const points = curve.getPoints(24);
+                            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                            linkGroup.add(new THREE.Line(geometry, material));
+                        } else {
+                            // Draw direct line for map
+                            const geometry = new THREE.BufferGeometry().setFromPoints([childPos, parentPos]);
+                            linkGroup.add(new THREE.Line(geometry, material));
+                        }
+                    }
+                }
+            });
+        });
+        return linkGroup;
+    };
+
     const renderGlobe = () => {
         const radius = 15;
         const geometry = new THREE.SphereGeometry(radius, 64, 64);
         const earth = new THREE.Mesh(geometry, earthMaterial);
         
-        // ALIGNMENT FIX: 
-        // We rotate the Earth mesh so the Texture's Greenwich (Lon 0) aligns with our calculated coordinate (0, 0, radius).
-        // Standard Equirectangular texture has Lon 0 at center (U=0.5).
-        // Three.js geometry usually puts seam (U=0/1) at back.
-        // We rotate -PI/2 on Y to align Lon 0 to +Z axis.
         earth.rotation.y = -Math.PI / 2;
         
         rootGroup.add(earth);
@@ -315,6 +375,14 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
             interactables.push(marker);
         });
         
+        // Add Migration Lines
+        const migrationLines = createMigrationLinks(
+            ancestors, 
+            (lat, lon) => latLonToVector3(lat, lon, radius),
+            true
+        );
+        rootGroup.add(migrationLines);
+        
         controlsRef.current.center.set(0, 0, 0);
     };
 
@@ -326,6 +394,16 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
         const mapPlane = new THREE.Mesh(geometry, flatMapMaterial);
         rootGroup.add(mapPlane);
 
+        // Helper for map coords
+        const getMapPos = (lat: number, lon: number) => {
+             // Basic Equirectangular projection mapping
+             const x = (lon / 180) * (width / 2);
+             const y = (lat / 90) * (height / 2);
+             // Jitter calculated inside plotting loop, but here we need consistent center for lines
+             // We will assume "center" of country for lines
+             return new THREE.Vector3(x, y, 0.5); 
+        };
+
         ancestors.forEach(person => {
             if (!person.country || !COUNTRY_COORDS[person.country]) return;
             const { lat, lon } = COUNTRY_COORDS[person.country];
@@ -333,11 +411,7 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
             const jLat = lat + (Math.random() - 0.5) * 2;
             const jLon = lon + (Math.random() - 0.5) * 2;
 
-            // Map Lat/Lon to Plane X/Y
-            // Lon (-180 to 180) -> X (-width/2 to width/2)
-            const x = (jLon / 180) * (width / 2);
-            // Lat (-90 to 90) -> Y (-height/2 to height/2)
-            const y = (jLat / 90) * (height / 2);
+            const pos = getMapPos(jLat, jLon);
 
             const markerGeo = new THREE.SphereGeometry(0.3, 16, 16);
              let color = 0x94a3b8;
@@ -345,12 +419,25 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
             if (person.gender === 'Female') color = 0xec4899;
 
             const marker = new THREE.Mesh(markerGeo, new THREE.MeshBasicMaterial({ color }));
-            marker.position.set(x, y, 0.5); // Slightly above plane
+            marker.position.copy(pos);
             marker.userData = { id: person.id, name: person.name, originalColor: color };
 
             rootGroup.add(marker);
             interactables.push(marker);
         });
+
+        // Add Migration Lines
+        // Use z = 0.4 to put lines slightly behind markers but above map
+        const migrationLines = createMigrationLinks(
+            ancestors,
+            (lat, lon) => {
+                const p = getMapPos(lat, lon);
+                p.z = 0.4;
+                return p;
+            },
+            false
+        );
+        rootGroup.add(migrationLines);
 
         controlsRef.current.center.set(0, 0, 0);
     };
@@ -437,7 +524,14 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
              const mesh = intersects[0].object as THREE.Mesh;
              const personId = mesh.userData.id;
              const person = ancestors.find(a => a.id === personId);
-             if (person) setSelectedInfo(person);
+             
+             if (person) {
+                 const info: AncestorWithGen = { ...person };
+                 if (mesh.userData.gen !== undefined) {
+                    info.gen = mesh.userData.gen;
+                 }
+                 setSelectedInfo(info);
+             }
              
              // Highlight
              interactables.forEach((m: any) => {
@@ -528,6 +622,11 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
            {selectedInfo.country && (
                <div className="mt-2 inline-block px-2 py-1 bg-slate-700 rounded text-xs font-mono text-emerald-300 border border-emerald-900">
                    📍 {selectedInfo.country}
+               </div>
+           )}
+           {viewMode === 'tree' && (
+               <div className="mt-2 text-xs text-indigo-300">
+                   Generation: {selectedInfo.gen !== undefined ? selectedInfo.gen : '?'}
                </div>
            )}
            <p className="text-slate-400 text-xs mt-2 italic border-t border-slate-700 pt-2">{selectedInfo.notes || 'No notes.'}</p>

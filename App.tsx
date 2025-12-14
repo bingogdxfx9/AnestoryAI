@@ -10,6 +10,7 @@ import { RecordVault } from './components/RecordVault';
 import { ImportWizard } from './components/ImportWizard';
 import { TimeTravelStudio } from './components/TimeTravelStudio';
 import { ThreeView } from './components/ThreeView';
+import { DataScrutinizer } from './components/DataScrutinizer';
 
 type View = 'dashboard' | 'tree' | 'records' | 'profile' | 'search';
 
@@ -22,10 +23,12 @@ const App: React.FC = () => {
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showTimeTravel, setShowTimeTravel] = useState(false);
   const [showThreeView, setShowThreeView] = useState(false);
+  const [showScrutinizer, setShowScrutinizer] = useState(false);
   
   // Selection State
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedAncestorId, setSelectedAncestorId] = useState<string | null>(null);
+  const [prefillData, setPrefillData] = useState<any>(null);
   
   // Filters
   const [filteredIds, setFilteredIds] = useState<string[] | null>(null);
@@ -51,8 +54,17 @@ const App: React.FC = () => {
   const handleQuickAction = (action: string) => {
     if (action === 'import') setShowImportWizard(true);
     if (action === '3d') setShowThreeView(true);
-    if (action === 'smart') setShowForm(true); // Simplified for demo
+    if (action === 'smart') {
+      // Open the AI Scrutinizer instead of the blank form
+      setShowScrutinizer(true); 
+    }
     if (action === 'report') generateFamilyReport(ancestors);
+  };
+
+  const handleScrutinyComplete = (data: any) => {
+    setPrefillData(data);
+    setShowScrutinizer(false);
+    setShowForm(true);
   };
 
   const handleSaveForm = (data: AncestorFormData) => {
@@ -75,6 +87,12 @@ const App: React.FC = () => {
     }
     setShowForm(false);
     setEditingId(null);
+    setPrefillData(null);
+  };
+
+  const handleDeleteAncestor = (id: string) => {
+      StorageService.delete(id);
+      setSelectedAncestorId(null);
   };
 
   const selectedAncestor = ancestors.find(a => a.id === selectedAncestorId);
@@ -108,7 +126,7 @@ const App: React.FC = () => {
                         <button className="w-10 h-10 rounded-full flex flex-col items-center justify-center text-gray-400 hover:text-white hover:bg-white/5 transition">
                             <span className="material-symbols-outlined text-[20px]">palette</span>
                         </button>
-                        <button onClick={() => setShowForm(true)} className="mx-1 w-12 h-12 bg-gradient-to-br from-primary to-blue-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95 transition">
+                        <button onClick={() => setShowScrutinizer(true)} className="mx-1 w-12 h-12 bg-gradient-to-br from-primary to-blue-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95 transition">
                             <span className="material-symbols-outlined text-[24px]">add</span>
                         </button>
                         <button onClick={() => setShowThreeView(true)} className="w-10 h-10 rounded-full flex flex-col items-center justify-center text-gray-400 hover:text-white hover:bg-white/5 transition">
@@ -125,6 +143,7 @@ const App: React.FC = () => {
                 allAncestors={ancestors}
                 onBack={() => setCurrentView('tree')}
                 onEdit={(id) => { setEditingId(id); setShowForm(true); }}
+                onDelete={handleDeleteAncestor}
                 onNavigateTree={() => setCurrentView('tree')}
                 onSelectRelative={handleSelectAncestor}
             />
@@ -171,8 +190,9 @@ const App: React.FC = () => {
         <AncestorForm 
             ancestors={ancestors}
             editingId={editingId}
+            prefillData={prefillData}
             onSave={handleSaveForm}
-            onCancel={() => { setShowForm(false); setEditingId(null); }}
+            onCancel={() => { setShowForm(false); setEditingId(null); setPrefillData(null); }}
         />
       )}
       
@@ -192,6 +212,13 @@ const App: React.FC = () => {
 
       {showTimeTravel && (
         <TimeTravelStudio onClose={() => setShowTimeTravel(false)} />
+      )}
+
+      {showScrutinizer && (
+        <DataScrutinizer 
+            onCancel={() => setShowScrutinizer(false)}
+            onAnalysisComplete={handleScrutinyComplete}
+        />
       )}
 
     </div>
