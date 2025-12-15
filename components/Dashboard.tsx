@@ -26,7 +26,7 @@ export const Dashboard: React.FC<Props> = ({ ancestors, userName = "Michael", on
   return (
     <div className="flex flex-col h-full overflow-y-auto pb-24 px-4 pt-4 animate-fade-in bg-background">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-white">Hello, {userName}</h2>
+        <h2 className="text-2xl font-bold text-white">Ancestry AI</h2>
         <p className="text-gray-400 text-sm">Here's what's happening in your family tree.</p>
       </div>
 
@@ -133,7 +133,7 @@ export const Dashboard: React.FC<Props> = ({ ancestors, userName = "Michael", on
                         </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm text-white font-medium truncate">Added {ancestor.name}</p>
+                        <p className="text-sm text-white font-medium truncate">{ancestor.name}</p>
                         <p className="text-xs text-gray-500 truncate">{ancestor.birthYear ? `Born ${ancestor.birthYear}` : 'Updated record'}</p>
                     </div>
                     <span className="text-[10px] text-gray-500 whitespace-nowrap">Just now</span>

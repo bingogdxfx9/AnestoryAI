@@ -600,6 +600,21 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
          </svg>
        </button>
 
+      {/* Generation Legend (Only in Tree Mode) */}
+      {viewMode === 'tree' && (
+        <div className="absolute top-20 right-4 z-10 bg-slate-800/80 p-3 rounded-xl border border-slate-600 backdrop-blur-sm shadow-xl max-h-[60vh] overflow-y-auto">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 border-b border-slate-600 pb-1">Generations</h4>
+            <div className="space-y-1">
+                {GENERATION_COLORS.map((color, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: `#${color.toString(16).padStart(6, '0')}` }}></div>
+                        <span className="text-xs text-slate-300">Gen {i}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+      )}
+
       {/* Zoom Controls */}
       <div className="absolute bottom-10 right-4 z-10 flex flex-col space-y-2">
            <button onClick={handleZoomIn} className="bg-slate-700 hover:bg-slate-600 text-white p-2 rounded-full shadow-lg border border-slate-500">
