@@ -16,6 +16,21 @@ interface TreeProps {
   onSelectNode: (id: string) => void;
 }
 
+// Visual Palette for Generations
+const GENERATION_COLORS = [
+    "#64748b", // Gen 0: Slate (Root)
+    "#ef4444", // Gen 1: Red
+    "#f97316", // Gen 2: Orange
+    "#f59e0b", // Gen 3: Amber
+    "#84cc16", // Gen 4: Lime
+    "#10b981", // Gen 5: Emerald
+    "#06b6d4", // Gen 6: Cyan
+    "#3b82f6", // Gen 7: Blue
+    "#8b5cf6", // Gen 8: Violet
+    "#d946ef", // Gen 9: Fuchsia
+    "#f43f5e"  // Gen 10: Rose
+];
+
 export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds, onSelectNode }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -63,8 +78,6 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
     svg.call(zoomBehavior as any);
     
     // Restore or Init Transform
-    // If it was the very first render, currentTransform is the default.
-    // If re-render, it's the preserved one.
     svg.call(zoomBehavior.transform as any, currentTransform);
 
     // Data Prep
@@ -173,12 +186,35 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
       });
 
     // Node Visuals...
+    // Main Card
     nodes.append("rect")
       .attr("x", -80).attr("y", 0).attr("width", 160).attr("height", 80).attr("rx", 16)
       .attr("fill", "#1e293b")
-      .attr("class", "node-rect fill-white dark:fill-slate-800 stroke-slate-200 dark:stroke-white/10") // Class based styling for theme
-      .attr("stroke-width", 1)
+      // Remove generic stroke class, apply dynamic stroke
+      .attr("class", "node-rect fill-white dark:fill-slate-800")
+      .attr("stroke", (d: any) => GENERATION_COLORS[d.depth % GENERATION_COLORS.length])
+      .attr("stroke-width", 2)
       .style("filter", "drop-shadow(0 4px 6px rgba(0,0,0,0.1))");
+
+    // Generation Badge (Top Right)
+    const genBadge = nodes.append("g")
+        .attr("transform", "translate(50, -10)");
+        
+    genBadge.append("rect")
+        .attr("width", 26)
+        .attr("height", 16)
+        .attr("rx", 8)
+        .attr("fill", (d: any) => GENERATION_COLORS[d.depth % GENERATION_COLORS.length]);
+        
+    genBadge.append("text")
+        .attr("x", 13)
+        .attr("y", 11)
+        .attr("text-anchor", "middle")
+        .style("font-family", "Inter")
+        .style("font-size", "9px")
+        .style("font-weight", "bold")
+        .style("fill", "white")
+        .text((d: any) => `G${d.depth}`);
 
     // Gender Indicator
     nodes.append("rect")
@@ -243,12 +279,13 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
        .attr("stroke", (d: any) => {
            if (highlightedIds && highlightedIds.has(d.data.id)) return "#f59e0b"; // Highlight color
            if (filteredIds && filteredIds.includes(d.data.id)) return "#2563EB";
-           return null; // Fallback to class
+           // Fallback to Generation Color
+           return GENERATION_COLORS[d.depth % GENERATION_COLORS.length];
        })
        .attr("stroke-width", (d: any) => {
            if (highlightedIds && highlightedIds.has(d.data.id)) return 3;
            if (filteredIds && filteredIds.includes(d.data.id)) return 2;
-           return 1;
+           return 2;
        });
 
     // Update Links
@@ -321,10 +358,9 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
         {/* Background Grid Pattern */}
         <div className="absolute inset-0 pointer-events-none opacity-20 dark:opacity-20 opacity-50" 
              style={{backgroundImage: 'radial-gradient(var(--tw-grid-color, #cbd5e1) 1px, transparent 1px)', backgroundSize: '20px 20px'}}>
-             {/* Note: Tailwind arbitrary values with CSS vars are tricky, so hardcoding fallbacks or using classes on parent */}
         </div>
         
-        {/* Legend Controls - Moved down to allow global theme toggle in corner */}
+        {/* Legend Controls */}
         <div className="absolute top-16 right-4 z-10" onClick={(e) => e.stopPropagation()}>
             <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur border border-slate-200 dark:border-white/10 rounded-xl p-3 shadow-xl flex flex-col gap-2.5 w-36">
                 <div className="flex justify-between items-center pb-1 border-b border-slate-200 dark:border-white/5">
@@ -338,6 +374,16 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
                 <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-pink-500 shadow-[0_0_8px_rgba(236,72,153,0.5)]"></div>
                     <span className="text-[11px] font-medium text-slate-600 dark:text-gray-300">Maternal</span>
+                </div>
+                
+                <div className="flex justify-between items-center pb-1 border-b border-slate-200 dark:border-white/5 mt-2">
+                    <p className="text-[10px] text-slate-500 dark:text-gray-400 font-bold uppercase tracking-wider">Depth</p>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                    {GENERATION_COLORS.slice(0, 5).map((color, i) => (
+                        <div key={i} className="w-2 h-2 rounded-full" style={{backgroundColor: color}} title={`Gen ${i}`}></div>
+                    ))}
+                    <span className="text-[10px] text-slate-400">...</span>
                 </div>
             </div>
         </div>
