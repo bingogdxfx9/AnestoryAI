@@ -5,7 +5,7 @@ import {
   zoomIdentity, 
   hierarchy, 
   tree, 
-  linkVertical,
+  linkVertical, 
   zoomTransform
 } from 'd3';
 import { Ancestor } from '../types';
@@ -91,6 +91,30 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
     const nodeHeight = 100;
     const treeLayout = tree().nodeSize([nodeWidth + 40, nodeHeight + 80]);
     const root = treeLayout(rootHierarchy as any);
+
+    // --- SIBLING GROUP HIGHLIGHTS ---
+    const siblingMap = new Map<string, any[]>();
+    root.descendants().forEach((d: any) => {
+        if (d.parent) {
+            const pid = d.parent.data.id;
+            if (!siblingMap.has(pid)) siblingMap.set(pid, []);
+            siblingMap.get(pid)?.push(d);
+        }
+    });
+
+    const siblingGroups = Array.from(siblingMap.values()).filter(g => g.length > 1);
+
+    g.selectAll(".sibling-group")
+        .data(siblingGroups)
+        .enter()
+        .append("rect")
+        .attr("class", "sibling-group fill-slate-200/40 dark:fill-white/5 stroke-slate-300/50 dark:stroke-white/10")
+        .attr("x", (grp: any[]) => Math.min(...grp.map(n => n.x)) - 95)
+        .attr("y", (grp: any[]) => grp[0].y - 15)
+        .attr("width", (grp: any[]) => (Math.max(...grp.map(n => n.x)) - Math.min(...grp.map(n => n.x))) + 190)
+        .attr("height", 110)
+        .attr("rx", 24)
+        .attr("ry", 24);
 
     // Links
     g.selectAll(".link")
