@@ -152,8 +152,9 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
     nodes.append("rect")
       .attr("x", -80).attr("y", 0).attr("width", 160).attr("height", 80).attr("rx", 16)
       .attr("fill", "#1e293b")
-      .attr("stroke", "rgba(255,255,255,0.1)").attr("stroke-width", 1)
-      .style("filter", "drop-shadow(0 4px 6px rgba(0,0,0,0.3))");
+      .attr("class", "node-rect fill-white dark:fill-slate-800 stroke-slate-200 dark:stroke-white/10") // Class based styling for theme
+      .attr("stroke-width", 1)
+      .style("filter", "drop-shadow(0 4px 6px rgba(0,0,0,0.1))");
 
     // Gender Indicator
     nodes.append("rect")
@@ -165,7 +166,8 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
       .append("circle").attr("cx", 0).attr("cy", 0).attr("r", 24);
     
     nodes.append("circle").attr("cx", 0).attr("cy", 0).attr("r", 26)
-      .attr("fill", "#1e293b").attr("stroke", "rgba(255,255,255,0.1)").attr("stroke-width", 1);
+      .attr("class", "fill-slate-100 dark:fill-slate-800 stroke-slate-200 dark:stroke-white/10")
+      .attr("stroke-width", 1);
 
     nodes.each(function(d: any) {
         const gNode = select(this);
@@ -176,18 +178,21 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
                 .attr("clip-path", `url(#clip-${d.data.id})`).attr("preserveAspectRatio", "xMidYMid slice");
         } else {
              gNode.append("text").attr("y", 8).attr("text-anchor", "middle")
-                .style("font-family", "Inter").style("font-weight", "bold").style("fill", "#64748b").style("font-size", "18px")
+                .style("font-family", "Inter").style("font-weight", "bold").style("font-size", "18px")
+                .attr("class", "fill-slate-400")
                 .text(d.data.name.charAt(0));
         }
     });
 
     // Text
     nodes.append("text").attr("dy", 45).attr("text-anchor", "middle")
-      .style("font-family", "Inter").style("font-weight", "600").style("fill", "#fff").style("font-size", "12px")
+      .style("font-family", "Inter").style("font-weight", "600").style("font-size", "12px")
+      .attr("class", "fill-slate-900 dark:fill-white")
       .text((d: any) => d.data.name.length > 18 ? d.data.name.substring(0,16)+'...' : d.data.name);
 
     nodes.append("text").attr("dy", 62).attr("text-anchor", "middle")
-      .style("font-family", "Inter").style("fill", "#94a3b8").style("font-size", "10px")
+      .style("font-family", "Inter").style("font-size", "10px")
+      .attr("class", "fill-slate-500 dark:fill-slate-400")
       .text((d: any) => `${d.data.birthYear || '?'} - ${d.data.deathYear || ''}`);
 
   }, [ancestors, lineageMode]); // Redraw only if data or layout mode changes
@@ -209,12 +214,12 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
        });
     
     // Update Node Stroke (Highlight)
-    svg.selectAll(".node rect")
+    svg.selectAll(".node rect.node-rect")
        .transition().duration(300)
        .attr("stroke", (d: any) => {
            if (highlightedIds && highlightedIds.has(d.data.id)) return "#f59e0b"; // Highlight color
            if (filteredIds && filteredIds.includes(d.data.id)) return "#2563EB";
-           return "rgba(255,255,255,0.1)";
+           return null; // Fallback to class
        })
        .attr("stroke-width", (d: any) => {
            if (highlightedIds && highlightedIds.has(d.data.id)) return 3;
@@ -229,9 +234,9 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
            if (highlightedIds) {
                const s = highlightedIds.has(d.source.data.id);
                const t = highlightedIds.has(d.target.data.id);
-               return (s && t) ? "#f59e0b" : "#475569";
+               return (s && t) ? "#f59e0b" : "#94a3b8";
            }
-           return "#475569";
+           return "#94a3b8"; // Slate 400
        })
        .attr("stroke-opacity", (d: any) => {
            if (highlightedIds) {
@@ -288,64 +293,65 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
   };
 
   return (
-    <div className="relative w-full h-full bg-background overflow-hidden animate-fade-in" onClick={handleBackgroundClick}>
+    <div className="relative w-full h-full bg-slate-50 dark:bg-slate-900 overflow-hidden animate-fade-in transition-colors duration-300" onClick={handleBackgroundClick}>
         {/* Background Grid Pattern */}
-        <div className="absolute inset-0 pointer-events-none opacity-20" 
-             style={{backgroundImage: 'radial-gradient(#334155 1px, transparent 1px)', backgroundSize: '20px 20px'}}>
+        <div className="absolute inset-0 pointer-events-none opacity-20 dark:opacity-20 opacity-50" 
+             style={{backgroundImage: 'radial-gradient(var(--tw-grid-color, #cbd5e1) 1px, transparent 1px)', backgroundSize: '20px 20px'}}>
+             {/* Note: Tailwind arbitrary values with CSS vars are tricky, so hardcoding fallbacks or using classes on parent */}
         </div>
         
-        {/* Legend Controls */}
-        <div className="absolute top-4 right-4 z-10" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-surface/90 backdrop-blur border border-white/10 rounded-xl p-3 shadow-xl flex flex-col gap-2.5 w-36">
-                <div className="flex justify-between items-center pb-1 border-b border-white/5">
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Lineage</p>
-                    <span className="material-symbols-outlined text-[14px] text-gray-500">info</span>
+        {/* Legend Controls - Moved down to allow global theme toggle in corner */}
+        <div className="absolute top-16 right-4 z-10" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur border border-slate-200 dark:border-white/10 rounded-xl p-3 shadow-xl flex flex-col gap-2.5 w-36">
+                <div className="flex justify-between items-center pb-1 border-b border-slate-200 dark:border-white/5">
+                    <p className="text-[10px] text-slate-500 dark:text-gray-400 font-bold uppercase tracking-wider">Lineage</p>
+                    <span className="material-symbols-outlined text-[14px] text-slate-400 dark:text-gray-500">info</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.5)]"></div>
-                    <span className="text-[11px] font-medium text-gray-300">Paternal</span>
+                    <span className="text-[11px] font-medium text-slate-600 dark:text-gray-300">Paternal</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-pink-500 shadow-[0_0_8px_rgba(236,72,153,0.5)]"></div>
-                    <span className="text-[11px] font-medium text-gray-300">Maternal</span>
+                    <span className="text-[11px] font-medium text-slate-600 dark:text-gray-300">Maternal</span>
                 </div>
             </div>
         </div>
 
         {/* Top Left Tools */}
         <div className="absolute top-4 left-4 z-10 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
-             <button onClick={() => setLineageMode(!lineageMode)} className="w-10 h-10 rounded-xl bg-surface/80 backdrop-blur border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-primary/20 hover:border-primary/50 transition shadow-lg" title="Toggle Lineage Dots">
+             <button onClick={() => setLineageMode(!lineageMode)} className="w-10 h-10 rounded-xl bg-white/80 dark:bg-slate-800/80 backdrop-blur border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-400 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white hover:bg-primary/20 hover:border-primary/50 transition shadow-lg" title="Toggle Lineage Dots">
                  <span className={`material-symbols-outlined text-[20px] ${lineageMode ? 'text-primary' : ''}`}>layers</span>
              </button>
         </div>
 
         {/* Zoom & Pan Controls */}
         <div className="absolute bottom-24 right-4 z-10 flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
-             <div className="bg-surface/90 backdrop-blur border border-white/10 rounded-full p-2 shadow-xl flex flex-col items-center gap-1">
-                <button onClick={() => handlePan(0, 50)} className="w-8 h-8 rounded-full hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center">
+             <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur border border-slate-200 dark:border-white/10 rounded-full p-2 shadow-xl flex flex-col items-center gap-1">
+                <button onClick={() => handlePan(0, 50)} className="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center">
                     <span className="material-symbols-outlined">keyboard_arrow_up</span>
                 </button>
                 <div className="flex gap-1">
-                    <button onClick={() => handlePan(50, 0)} className="w-8 h-8 rounded-full hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center">
+                    <button onClick={() => handlePan(50, 0)} className="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center">
                         <span className="material-symbols-outlined">keyboard_arrow_left</span>
                     </button>
                     <button onClick={handleResetZoom} className="w-8 h-8 rounded-full bg-primary/20 text-primary hover:bg-primary/40 flex items-center justify-center" title="Reset View">
                          <span className="material-symbols-outlined text-sm">center_focus_strong</span>
                     </button>
-                    <button onClick={() => handlePan(-50, 0)} className="w-8 h-8 rounded-full hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center">
+                    <button onClick={() => handlePan(-50, 0)} className="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center">
                         <span className="material-symbols-outlined">keyboard_arrow_right</span>
                     </button>
                 </div>
-                <button onClick={() => handlePan(0, -50)} className="w-8 h-8 rounded-full hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center">
+                <button onClick={() => handlePan(0, -50)} className="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center">
                     <span className="material-symbols-outlined">keyboard_arrow_down</span>
                 </button>
              </div>
 
-             <div className="bg-surface/90 backdrop-blur border border-white/10 rounded-full p-2 shadow-xl flex flex-col gap-2 items-center">
-                <button onClick={() => handleZoom(1.3)} className="w-10 h-10 rounded-full bg-white/5 hover:bg-primary/20 text-gray-300 hover:text-white flex items-center justify-center transition" title="Zoom In">
+             <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur border border-slate-200 dark:border-white/10 rounded-full p-2 shadow-xl flex flex-col gap-2 items-center">
+                <button onClick={() => handleZoom(1.3)} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-primary/20 text-slate-500 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition" title="Zoom In">
                     <span className="material-symbols-outlined">add</span>
                 </button>
-                <button onClick={() => handleZoom(0.7)} className="w-10 h-10 rounded-full bg-white/5 hover:bg-primary/20 text-gray-300 hover:text-white flex items-center justify-center transition" title="Zoom Out">
+                <button onClick={() => handleZoom(0.7)} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-primary/20 text-slate-500 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition" title="Zoom Out">
                     <span className="material-symbols-outlined">remove</span>
                 </button>
              </div>
@@ -353,8 +359,8 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
 
         {/* Selected Node Action Bar */}
         {selectedNode && (
-            <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-20 bg-surface/90 backdrop-blur border border-white/10 rounded-full py-2 px-6 flex items-center shadow-2xl animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
-                <span className="text-sm font-bold text-white mr-4">{selectedNode.name}</span>
+            <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-20 bg-white/90 dark:bg-slate-800/90 backdrop-blur border border-slate-200 dark:border-white/10 rounded-full py-2 px-6 flex items-center shadow-2xl animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+                <span className="text-sm font-bold text-slate-900 dark:text-white mr-4">{selectedNode.name}</span>
                 <button 
                     onClick={() => onSelectNode(selectedNode.id)}
                     className="bg-primary hover:bg-primary-dark text-white text-xs font-bold px-4 py-1.5 rounded-full transition shadow-lg shadow-primary/20"
@@ -363,7 +369,7 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
                 </button>
                 <button 
                     onClick={handleBackgroundClick}
-                    className="ml-2 p-1 text-gray-400 hover:text-white rounded-full hover:bg-white/10 transition"
+                    className="ml-2 p-1 text-slate-400 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition"
                 >
                     <span className="material-symbols-outlined text-lg">close</span>
                 </button>

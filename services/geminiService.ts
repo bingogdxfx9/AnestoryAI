@@ -325,7 +325,7 @@ export const predictSES = async (ancestor: Ancestor): Promise<SESResult> => {
             }
         });
 
-        const text = response.text || "{}";
+        const text = response.text || "[]";
         // Extract JSON from potential markdown code block
         const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || text.match(/\{[\s\S]*\}/);
         const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : text.replace(/```json|```/g, "").trim();
@@ -422,5 +422,39 @@ export const generateStylizedImage = async (base64Image: string, style: string):
     } catch (e) {
         console.error("Image Stylization Error", e);
         return null;
+    }
+};
+
+export const generateAlternateHistory = async (ancestor: Ancestor, scenario: string): Promise<string> => {
+    if (!process.env.API_KEY) return "API Key missing.";
+
+    const prompt = `
+    I am running a "What If?" simulation for my ancestor.
+    
+    Ancestor Profile:
+    Name: ${ancestor.name}
+    Born: ${ancestor.birthYear || '?'}
+    Died: ${ancestor.deathYear || '?'}
+    Country: ${ancestor.country || '?'}
+    Known History: ${ancestor.notes}
+
+    "What If" Scenario:
+    ${scenario}
+
+    Task:
+    Write a creative, grounded alternate history biography for this person (approx 200 words).
+    Speculate on how this change would have affected their career, family life, and descendants.
+    Maintain historical plausibility for the era.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+        });
+        return response.text || "Simulation inconclusive.";
+    } catch (e) {
+        console.error("Alternate History Error", e);
+        return "Failed to generate simulation.";
     }
 };

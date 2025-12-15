@@ -6,6 +6,7 @@ import {
     analyzeMissingData, 
     generateTimeline, 
     predictSES,
+    generateAlternateHistory,
     HistoricalContextResponse 
 } from '../services/geminiService';
 
@@ -14,7 +15,7 @@ interface Props {
   ancestors: Ancestor[];
 }
 
-type TabMode = 'history' | 'story' | 'timeline' | 'insights' | 'suggestions';
+type TabMode = 'history' | 'story' | 'timeline' | 'insights' | 'suggestions' | 'simulation';
 
 export const AIHistorian: React.FC<Props> = ({ selectedAncestorId, ancestors }) => {
   const [mode, setMode] = useState<TabMode>('history');
@@ -25,6 +26,9 @@ export const AIHistorian: React.FC<Props> = ({ selectedAncestorId, ancestors }) 
   const [suggestionsData, setSuggestionsData] = useState<string | null>(null);
   const [timelineData, setTimelineData] = useState<TimelineEvent[] | null>(null);
   const [sesData, setSesData] = useState<SESResult | null>(null);
+  const [simulationData, setSimulationData] = useState<string | null>(null);
+  
+  const [simulationPrompt, setSimulationPrompt] = useState('');
 
   const [loading, setLoading] = useState<boolean>(false);
   const [storyStyle, setStoryStyle] = useState<string>('Standard');
@@ -38,6 +42,8 @@ export const AIHistorian: React.FC<Props> = ({ selectedAncestorId, ancestors }) 
     setSuggestionsData(null);
     setTimelineData(null);
     setSesData(null);
+    setSimulationData(null);
+    setSimulationPrompt('');
     setMode('history');
   }, [selectedAncestorId]);
 
@@ -61,6 +67,9 @@ export const AIHistorian: React.FC<Props> = ({ selectedAncestorId, ancestors }) 
         } else if (mode === 'suggestions') {
             const res = await analyzeMissingData(currentAncestor);
             setSuggestionsData(res);
+        } else if (mode === 'simulation') {
+            const res = await generateAlternateHistory(currentAncestor, simulationPrompt);
+            setSimulationData(res);
         }
     } catch (e) {
         console.error(e);
@@ -189,6 +198,60 @@ export const AIHistorian: React.FC<Props> = ({ selectedAncestorId, ancestors }) 
         );
     }
 
+    // --- SIMULATION TAB ("What If?") ---
+    if (mode === 'simulation') {
+        if (!simulationData) {
+            return (
+                <div className="text-center py-2 animate-fade-in">
+                    <p className="text-xs text-indigo-600 dark:text-indigo-300 mb-3 font-semibold">
+                        "What If" Scenario Simulator
+                    </p>
+                    <textarea 
+                        value={simulationPrompt}
+                        onChange={(e) => setSimulationPrompt(e.target.value)}
+                        placeholder="E.g., What if they emigrated to Australia instead of the US? What if they survived the war?"
+                        className="w-full text-sm p-3 rounded-md border border-indigo-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white mb-3 focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none h-24"
+                    />
+                    <div className="flex gap-2 justify-center mb-4">
+                        <button 
+                             onClick={() => setSimulationPrompt("What if they lived to be 100 years old?")}
+                             className="text-[10px] bg-white/50 dark:bg-slate-700 px-2 py-1 rounded hover:bg-indigo-100 dark:hover:bg-slate-600 transition"
+                        >
+                            Longevity
+                        </button>
+                        <button 
+                             onClick={() => setSimulationPrompt("What if they never married?")}
+                             className="text-[10px] bg-white/50 dark:bg-slate-700 px-2 py-1 rounded hover:bg-indigo-100 dark:hover:bg-slate-600 transition"
+                        >
+                            Single Life
+                        </button>
+                    </div>
+                    <button 
+                        onClick={handleGenerate}
+                        disabled={!simulationPrompt.trim()}
+                        className={`bg-fuchsia-600 text-white px-4 py-2 rounded-md hover:bg-fuchsia-700 transition text-sm shadow flex items-center justify-center mx-auto ${!simulationPrompt.trim() ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                        <span className="mr-2">🔮</span> Simulate Reality
+                    </button>
+                </div>
+            );
+        }
+        return (
+            <div className="animate-fade-in">
+                <div className="flex justify-between items-start mb-3 pb-2 border-b border-indigo-100 dark:border-slate-700">
+                    <div className="text-left">
+                        <span className="text-xs font-bold text-fuchsia-600 dark:text-fuchsia-400 uppercase tracking-wide block">Alternate History</span>
+                        <p className="text-[10px] text-slate-500 truncate max-w-[200px] italic">"{simulationPrompt}"</p>
+                    </div>
+                    <button onClick={() => setSimulationData(null)} className="text-xs text-indigo-400 hover:text-indigo-600 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-indigo-100 dark:border-slate-600">Reset</button>
+                </div>
+                <div className="prose prose-sm text-indigo-900 dark:text-indigo-100 max-h-[300px] overflow-y-auto p-3 bg-fuchsia-50/50 dark:bg-slate-800/50 rounded border border-fuchsia-100 dark:border-slate-700">
+                    <p className="whitespace-pre-line leading-relaxed">{simulationData}</p>
+                </div>
+            </div>
+        );
+    }
+
     return null;
   };
 
@@ -219,8 +282,8 @@ export const AIHistorian: React.FC<Props> = ({ selectedAncestorId, ancestors }) 
       </div>
 
       {/* Scrollable Tabs */}
-      <div className="flex border-b border-indigo-100 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 overflow-x-auto">
-        {(['history', 'story', 'timeline', 'insights', 'suggestions'] as TabMode[]).map((t) => (
+      <div className="flex border-b border-indigo-100 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 overflow-x-auto no-scrollbar">
+        {(['history', 'story', 'timeline', 'insights', 'suggestions', 'simulation'] as TabMode[]).map((t) => (
             <button
                 key={t}
                 onClick={() => setMode(t)}
@@ -230,7 +293,7 @@ export const AIHistorian: React.FC<Props> = ({ selectedAncestorId, ancestors }) 
                     : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-300'
                 }`}
             >
-                {t.charAt(0).toUpperCase() + t.slice(1)}
+                {t === 'simulation' ? 'What If?' : t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
         ))}
       </div>
