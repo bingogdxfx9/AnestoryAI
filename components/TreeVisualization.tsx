@@ -171,10 +171,13 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
       .on("click", (e, d: any) => {
           e.stopPropagation();
           // INTERACTIVE HIGHLIGHT LOGIC
+          // Find all ancestors (path up) and descendants (path down)
           const related = new Set<string>();
-          // Ancestors (Up)
+          
+          // d.ancestors() in D3 hierarchy returns the path from node to root
           d.ancestors().forEach((n: any) => related.add(n.data.id));
-          // Descendants (Down)
+          
+          // d.descendants() returns the node and all its children/grandchildren
           d.descendants().forEach((n: any) => related.add(n.data.id));
           
           setHighlightedIds(related);
@@ -262,29 +265,33 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
   useEffect(() => {
     if (!svgRef.current) return;
     const svg = select(svgRef.current);
+    
+    const HIGHLIGHT_COLOR = "#F59E0B"; // Amber 500 for the distinct path
+    const DIMMED_OPACITY = 0.15;
+    const NORMAL_OPACITY = 1;
 
     // Update Nodes
     svg.selectAll(".node")
        .transition().duration(300)
        .attr("opacity", (d: any) => {
            if (highlightedIds) {
-               return highlightedIds.has(d.data.id) ? 1 : 0.1;
+               return highlightedIds.has(d.data.id) ? NORMAL_OPACITY : DIMMED_OPACITY;
            }
-           return filteredIds && !filteredIds.includes(d.data.id) ? 0.3 : 1;
+           return filteredIds && !filteredIds.includes(d.data.id) ? 0.3 : NORMAL_OPACITY;
        });
     
     // Update Node Stroke (Highlight)
     svg.selectAll(".node rect.node-rect")
        .transition().duration(300)
        .attr("stroke", (d: any) => {
-           if (highlightedIds && highlightedIds.has(d.data.id)) return "#f59e0b"; // Highlight color
+           if (highlightedIds && highlightedIds.has(d.data.id)) return HIGHLIGHT_COLOR;
            if (filteredIds && filteredIds.includes(d.data.id)) return "#2563EB";
            // Fallback to Generation Color
            return GENERATION_COLORS[d.depth % GENERATION_COLORS.length];
        })
        .attr("stroke-width", (d: any) => {
-           if (highlightedIds && highlightedIds.has(d.data.id)) return 3;
-           if (filteredIds && filteredIds.includes(d.data.id)) return 2;
+           if (highlightedIds && highlightedIds.has(d.data.id)) return 4;
+           if (filteredIds && filteredIds.includes(d.data.id)) return 3;
            return 2;
        });
 
@@ -295,7 +302,7 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
            if (highlightedIds) {
                const s = highlightedIds.has(d.source.data.id);
                const t = highlightedIds.has(d.target.data.id);
-               return (s && t) ? "#f59e0b" : "#94a3b8";
+               return (s && t) ? HIGHLIGHT_COLOR : "#94a3b8";
            }
            return "#94a3b8"; // Slate 400
        })
@@ -303,7 +310,7 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
            if (highlightedIds) {
                const s = highlightedIds.has(d.source.data.id);
                const t = highlightedIds.has(d.target.data.id);
-               return (s && t) ? 1 : 0.05;
+               return (s && t) ? 1 : DIMMED_OPACITY;
            }
            return 0.6;
        })
@@ -311,7 +318,7 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
            if (highlightedIds) {
                const s = highlightedIds.has(d.source.data.id);
                const t = highlightedIds.has(d.target.data.id);
-               return (s && t) ? 3 : 1.5;
+               return (s && t) ? 3 : 1;
            }
            return 1.5;
        });
@@ -323,7 +330,7 @@ export const TreeVisualization: React.FC<TreeProps> = ({ ancestors, filteredIds,
             if (highlightedIds) {
                const s = highlightedIds.has(d.source.data.id);
                const t = highlightedIds.has(d.target.data.id);
-               return (s && t) ? 1 : 0.05;
+               return (s && t) ? 1 : 0; // Hide lineage dots if unconnected
            }
            return 1;
         });
