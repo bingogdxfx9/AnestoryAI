@@ -90,6 +90,16 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
   const [selectedInfo, setSelectedInfo] = useState<AncestorWithGen | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('tree');
   
+  // Timeline State
+  const [currentYear, setCurrentYear] = useState(2025);
+  const [minYear, setMinYear] = useState(1800);
+  const [maxYear, setMaxYear] = useState(2025);
+  const [isPlaying, setIsPlaying] = useState(false);
+  
+  // Refs for scene access
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const rootGroupRef = useRef<THREE.Group | null>(null);
+
   // Shared state for camera controls
   const controlsRef = useRef({
       radius: 40,
@@ -97,6 +107,54 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
       phi: Math.PI / 3,
       center: new THREE.Vector3(0, 0, 0)
   });
+
+  // Calculate Year Range
+  useEffect(() => {
+    if (ancestors.length > 0) {
+      const years = ancestors
+        .map(a => a.birthYear)
+        .filter(y => y !== null && y !== undefined) as number[];
+      
+      if (years.length > 0) {
+        const min = Math.min(...years);
+        const max = new Date().getFullYear();
+        setMinYear(min);
+        setMaxYear(max);
+        setCurrentYear(max);
+      }
+    }
+  }, [ancestors]);
+
+  // Timeline Animation Loop
+  useEffect(() => {
+    let intervalId: any;
+    if (isPlaying) {
+      intervalId = setInterval(() => {
+        setCurrentYear(prev => {
+          // Dynamic speed based on range size
+          const step = Math.max(1, Math.ceil((maxYear - minYear) / 200));
+          const next = prev + step;
+          if (next >= maxYear) {
+            setIsPlaying(false);
+            return maxYear;
+          }
+          return next;
+        });
+      }, 50);
+    }
+    return () => clearInterval(intervalId);
+  }, [isPlaying, maxYear, minYear]);
+
+  // Visibility Update based on Year
+  useEffect(() => {
+    if (rootGroupRef.current) {
+        rootGroupRef.current.traverse((obj) => {
+            if (obj.userData && obj.userData.year !== undefined) {
+                obj.visible = obj.userData.year <= currentYear;
+            }
+        });
+    }
+  }, [currentYear]);
 
   const handleZoomIn = () => {
       controlsRef.current.radius = Math.max(5, controlsRef.current.radius * 0.8);
@@ -113,11 +171,21 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
       controlsRef.current.center.set(0,0,0);
   };
 
+  const getYearColor = (year: number) => {
+      // Map year to 0-1 range
+      const t = (year - minYear) / (maxYear - minYear || 1);
+      // Interpolate between Blue (old) and Pink (new)
+      const c1 = new THREE.Color(0x3b82f6); // Blue-500
+      const c2 = new THREE.Color(0xec4899); // Pink-500
+      return c1.lerp(c2, t);
+  };
+
   useEffect(() => {
     if (!containerRef.current || ancestors.length === 0) return;
 
     // --- SCENE SETUP ---
     const scene = new THREE.Scene();
+    sceneRef.current = scene;
     scene.background = new THREE.Color(0x0f172a); // Slate-900
     scene.fog = new THREE.Fog(0x0f172a, 10, 300);
 
@@ -190,6 +258,7 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
     // --- INTERACTIVE OBJECTS ---
     const interactables: THREE.Mesh[] = [];
     const rootGroup = new THREE.Group();
+    rootGroupRef.current = rootGroup;
     scene.add(rootGroup);
 
     // --- RENDER MODES ---
@@ -240,7 +309,7 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
             const material = new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.2 });
             const sphere = new THREE.Mesh(geometry, material);
             sphere.position.set(xPos, 0, zPos);
-            sphere.userData = { id: person.id, name: person.name, originalColor: color, gen: gen };
+            sphere.userData = { id: person.id, name: person.name, originalColor: color, gen: gen, year: person.birthYear };
             
             nodeGroup.add(sphere);
             interactables.push(sphere);
@@ -259,6 +328,8 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
                         const points = [childMesh.position, parentMesh.position];
                         const geom = new THREE.BufferGeometry().setFromPoints(points);
                         const line = new THREE.Line(geom, linkMaterial);
+                        // Make line visible when child is born
+                        line.userData = { year: person.birthYear };
                         linkGroup.add(line);
                     }
                 }
@@ -291,21 +362,22 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
         isGlobe: boolean
     ): THREE.Group => {
         const linkGroup = new THREE.Group();
-        // Use a semi-transparent material for migration paths
-        const material = new THREE.LineBasicMaterial({ 
-            color: 0x34d399, // Emerald-400
-            transparent: true, 
-            opacity: 0.4 
-        });
-
+        
         ancestorList.forEach(person => {
-            // If person has no country, skip
             if (!person.country || !COUNTRY_COORDS[person.country]) return;
-            
             const childPos = posMapper(
                 COUNTRY_COORDS[person.country].lat, 
                 COUNTRY_COORDS[person.country].lon
             );
+
+            // Use birthYear for coloring and timeline
+            const year = person.birthYear || minYear;
+            const color = getYearColor(year);
+            const material = new THREE.LineBasicMaterial({ 
+                color: color, 
+                transparent: true, 
+                opacity: 0.6 
+            });
 
             // Draw line to parents
             [person.fatherId, person.motherId].forEach(pid => {
@@ -319,6 +391,8 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
                             COUNTRY_COORDS[parent.country].lat, 
                             COUNTRY_COORDS[parent.country].lon
                         );
+                        
+                        let geometry: THREE.BufferGeometry;
 
                         if (isGlobe) {
                             // Draw Great Circle-ish Arc
@@ -328,13 +402,17 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
                             
                             const curve = new THREE.QuadraticBezierCurve3(childPos, mid, parentPos);
                             const points = curve.getPoints(24);
-                            const geometry = new THREE.BufferGeometry().setFromPoints(points);
-                            linkGroup.add(new THREE.Line(geometry, material));
+                            geometry = new THREE.BufferGeometry().setFromPoints(points);
                         } else {
                             // Draw direct line for map
-                            const geometry = new THREE.BufferGeometry().setFromPoints([childPos, parentPos]);
-                            linkGroup.add(new THREE.Line(geometry, material));
+                            // We might want arcs for map too, but straight is safer for z-fighting on planes
+                            geometry = new THREE.BufferGeometry().setFromPoints([childPos, parentPos]);
                         }
+                        
+                        const line = new THREE.Line(geometry, material);
+                        // Set userData so timeline can filter it
+                        line.userData = { year: year };
+                        linkGroup.add(line);
                     }
                 }
             });
@@ -369,7 +447,12 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
 
             const marker = new THREE.Mesh(markerGeo, new THREE.MeshBasicMaterial({ color }));
             marker.position.copy(pos);
-            marker.userData = { id: person.id, name: person.name, originalColor: color };
+            marker.userData = { 
+                id: person.id, 
+                name: person.name, 
+                originalColor: color,
+                year: person.birthYear 
+            };
             
             rootGroup.add(marker);
             interactables.push(marker);
@@ -420,7 +503,12 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
 
             const marker = new THREE.Mesh(markerGeo, new THREE.MeshBasicMaterial({ color }));
             marker.position.copy(pos);
-            marker.userData = { id: person.id, name: person.name, originalColor: color };
+            marker.userData = { 
+                id: person.id, 
+                name: person.name, 
+                originalColor: color,
+                year: person.birthYear
+            };
 
             rootGroup.add(marker);
             interactables.push(marker);
@@ -599,6 +687,47 @@ export const ThreeView: React.FC<Props> = ({ ancestors, onClose }) => {
            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
          </svg>
        </button>
+
+       {/* Timeline Controls */}
+       {(viewMode === 'globe' || viewMode === 'map') && (
+        <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 w-11/12 max-w-xl z-20">
+          <div className="bg-slate-800/90 border border-slate-600 rounded-xl p-4 backdrop-blur-md shadow-2xl">
+            <div className="flex items-center gap-4 mb-2">
+              <button 
+                onClick={() => setIsPlaying(!isPlaying)}
+                className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center text-white transition shadow-lg"
+              >
+                <span className="material-symbols-outlined">{isPlaying ? 'pause' : 'play_arrow'}</span>
+              </button>
+              <div className="flex-1">
+                <div className="flex justify-between items-center text-xs text-slate-400 font-bold mb-1">
+                  <span>{minYear}</span>
+                  <span className="text-white text-lg">{currentYear}</span>
+                  <span>{maxYear}</span>
+                </div>
+                <input 
+                  type="range" 
+                  min={minYear} 
+                  max={maxYear} 
+                  value={currentYear}
+                  onChange={(e) => { setIsPlaying(false); setCurrentYear(parseInt(e.target.value)); }}
+                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                />
+              </div>
+            </div>
+            <div className="flex justify-between items-center pt-2 border-t border-slate-700">
+               <span className="text-[10px] text-slate-400 uppercase tracking-widest">Migration Path Age:</span>
+               <div className="flex items-center gap-2">
+                   <div className="w-20 h-2 bg-gradient-to-r from-blue-500 to-pink-500 rounded-full"></div>
+                   <div className="flex text-[10px] text-slate-400 gap-16">
+                      <span>Oldest</span>
+                      <span>Newest</span>
+                   </div>
+               </div>
+            </div>
+          </div>
+        </div>
+       )}
 
       {/* Generation Legend (Only in Tree Mode) */}
       {viewMode === 'tree' && (
