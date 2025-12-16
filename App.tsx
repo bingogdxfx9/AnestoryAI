@@ -78,7 +78,7 @@ const App: React.FC = () => {
         },
         (error: any) => {
              // Handle permission errors
-             if (error?.code === 'permission-denied') {
+             if (error?.code === 'permission-denied' || error?.message?.includes('permission')) {
                  setDbError("Access denied. Firestore Rules block this request.");
              } else {
                  setDbError(`Connection error: ${error.message}`);
@@ -135,16 +135,25 @@ const App: React.FC = () => {
   };
 
   const handleSaveForm = async (data: AncestorFormData) => {
+    // Helper to safely parse numbers, treating NaN/empty as null
+    const parseNumber = (val: string) => {
+        if (!val) return null;
+        const num = parseInt(val, 10);
+        return isNaN(num) ? null : num;
+    };
+
     const payload = {
         name: data.name,
-        birthYear: data.birthYear ? parseInt(data.birthYear) : null,
-        deathYear: data.deathYear ? parseInt(data.deathYear) : null,
+        birthYear: parseNumber(data.birthYear),
+        deathYear: parseNumber(data.deathYear),
         gender: data.gender,
         country: data.country || null,
         fatherId: data.fatherId || null,
         motherId: data.motherId || null,
         notes: data.notes,
-        photoUrl: data.photoUrl
+        // photoUrl is guaranteed by form to be string, but if empty, we send null
+        // Sanitizer will remove undefined keys if any slip through
+        photoUrl: data.photoUrl ? data.photoUrl : null
     };
 
     try {
@@ -156,17 +165,36 @@ const App: React.FC = () => {
         setShowForm(false);
         setEditingId(null);
         setPrefillData(null);
-    } catch (e) {
-        alert("Failed to save. Check permissions.");
+    } catch (e: any) {
+        // Robust check for permission errors
+        if (e.code === 'permission-denied' || e.message?.toLowerCase().includes('permission') || e.message?.toLowerCase().includes('access')) {
+             // Set error state to show the permissions help screen
+             setDbError("Access denied. Unable to save record. Please check Firestore Rules.");
+             setShowForm(false);
+        } else {
+             alert(`Failed to save: ${e.message}`);
+        }
     }
   };
   
   const handleUpdateAncestor = (id: string, updates: Partial<Ancestor>) => {
-      StorageService.update(id, updates).catch(() => alert("Update failed. Permission denied."));
+      StorageService.update(id, updates).catch((e) => {
+          if (e.code === 'permission-denied' || e.message?.toLowerCase().includes('permission')) {
+              setDbError("Access denied. Unable to update record.");
+          } else {
+              alert("Update failed.");
+          }
+      });
   };
 
   const handleDeleteAncestor = (id: string) => {
-      StorageService.delete(id).catch(() => alert("Delete failed. Permission denied."));
+      StorageService.delete(id).catch((e) => {
+          if (e.code === 'permission-denied' || e.message?.toLowerCase().includes('permission')) {
+               setDbError("Access denied. Unable to delete record.");
+          } else {
+               alert("Delete failed.");
+          }
+      });
       setSelectedAncestorId(null);
   };
 
@@ -189,14 +217,13 @@ const App: React.FC = () => {
               <h2 className="text-2xl font-bold mb-2">Database Access Denied</h2>
               <p className="text-slate-400 max-w-lg mb-6">{dbError}</p>
               
-              {dbError.includes('Access denied') && (
-                  <div className="bg-slate-800 p-6 rounded-lg border border-slate-700 max-w-xl w-full text-left">
-                      <p className="text-sm text-slate-300 mb-3 font-semibold">Action Required: Update Firestore Rules</p>
-                      <p className="text-xs text-slate-500 mb-3">
-                          Go to <strong>Firebase Console</strong> &gt; <strong>Firestore Database</strong> &gt; <strong>Rules</strong> and paste this configuration:
-                      </p>
-                      <div className="bg-black/50 p-4 rounded border border-slate-600 font-mono text-xs text-green-400 overflow-x-auto">
-                           <pre>{`rules_version = '2';
+              <div className="bg-slate-800 p-6 rounded-lg border border-slate-700 max-w-xl w-full text-left">
+                  <p className="text-sm text-slate-300 mb-3 font-semibold">Action Required: Update Firestore Rules</p>
+                  <p className="text-xs text-slate-500 mb-3">
+                      Go to <strong>Firebase Console</strong> &gt; <strong>Firestore Database</strong> &gt; <strong>Rules</strong> and paste this configuration:
+                  </p>
+                  <div className="bg-black/50 p-4 rounded border border-slate-600 font-mono text-xs text-green-400 overflow-x-auto">
+                       <pre>{`rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /{document=**} {
@@ -204,12 +231,17 @@ service cloud.firestore {
     }
   }
 }`}</pre>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-3">
-                          Ensure <strong>Anonymous Authentication</strong> is enabled in <strong>Authentication</strong> &gt; <strong>Sign-in method</strong>.
-                      </p>
                   </div>
-              )}
+                  <p className="text-xs text-slate-500 mt-3">
+                      Ensure <strong>Anonymous Authentication</strong> is enabled in <strong>Authentication</strong> &gt; <strong>Sign-in method</strong>.
+                  </p>
+                  <button 
+                    onClick={() => setDbError(null)} 
+                    className="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded text-sm font-bold"
+                  >
+                    Try Again
+                  </button>
+              </div>
           </div>
       );
   }

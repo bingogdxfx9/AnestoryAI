@@ -19,6 +19,23 @@ const appId = firebaseConfig.appId || '1:927330435478:web:d0d6c70c99765ae182ddb7
 // Update collection name to match the security rule path: /artifacts/{appId}/public/data/familyTree/
 const COLLECTION_NAME = `artifacts/${appId}/public/data/familyTree`;
 
+// Helper to sanitize data for Firestore
+// Firestore throws an error if a field is 'undefined'.
+// We explicitly remove such keys.
+// We also convert NaN to null.
+const sanitizeData = (data: any) => {
+  const sanitized = { ...data };
+  Object.keys(sanitized).forEach(key => {
+    const val = sanitized[key];
+    if (val === undefined) {
+      delete sanitized[key]; // Delete the key entirely
+    } else if (typeof val === 'number' && isNaN(val)) {
+      sanitized[key] = null;
+    }
+  });
+  return sanitized;
+};
+
 export const StorageService = {
   // Subscribe to updates (Real-time listener)
   subscribe: (callback: (data: Ancestor[]) => void, onError?: (error: any) => void) => {
@@ -45,8 +62,9 @@ export const StorageService = {
   // Add new ancestor
   add: async (data: Omit<Ancestor, 'id' | 'dateAdded'>) => {
     try {
+      const safeData = sanitizeData(data);
       await addDoc(collection(db, COLLECTION_NAME), {
-        ...data,
+        ...safeData,
         dateAdded: Date.now()
       });
     } catch (e: any) {
@@ -63,7 +81,7 @@ export const StorageService = {
       const docRef = doc(db, COLLECTION_NAME, id);
       // Ensure we don't accidentally try to write the ID field into the document data
       const { id: _, ...cleanUpdates } = updates as any;
-      await updateDoc(docRef, cleanUpdates);
+      await updateDoc(docRef, sanitizeData(cleanUpdates));
     } catch (e: any) {
       if (e.code !== 'permission-denied') {
         console.error("Error updating document: ", e);

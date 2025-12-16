@@ -32,7 +32,8 @@ const initialForm: AncestorFormData = {
   country: '',
   fatherId: '',
   motherId: '',
-  notes: ''
+  notes: '',
+  photoUrl: ''
 };
 
 export const AncestorForm: React.FC<Props> = ({ ancestors, editingId, prefillData, onSave, onCancel }) => {
@@ -52,7 +53,8 @@ export const AncestorForm: React.FC<Props> = ({ ancestors, editingId, prefillDat
           country: existing.country || '',
           fatherId: existing.fatherId || '',
           motherId: existing.motherId || '',
-          notes: existing.notes
+          notes: existing.notes,
+          photoUrl: existing.photoUrl || ''
         });
       }
     } else if (prefillData) {
@@ -79,7 +81,8 @@ export const AncestorForm: React.FC<Props> = ({ ancestors, editingId, prefillDat
         country: prefillData.country || '',
         fatherId: foundFatherId,
         motherId: foundMotherId,
-        notes: prefillData.notes || ''
+        notes: prefillData.notes || '',
+        photoUrl: prefillData.photoUrl || ''
       });
     } else {
       // NEW BLANK MODE
@@ -140,6 +143,18 @@ export const AncestorForm: React.FC<Props> = ({ ancestors, editingId, prefillDat
               value={form.name}
               onChange={handleChange}
               className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border p-2"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Photo URL (Optional)</label>
+            <input
+              type="text"
+              name="photoUrl"
+              value={form.photoUrl || ''}
+              onChange={handleChange}
+              placeholder="https://example.com/photo.jpg"
+              className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border p-2 text-sm"
             />
           </div>
 
