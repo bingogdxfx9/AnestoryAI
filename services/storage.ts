@@ -1,109 +1,101 @@
+import { db } from './firebase';
+import { 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  onSnapshot, 
+  query, 
+  orderBy, 
+  getDocs,
+  limit
+} from 'firebase/firestore';
 import { Ancestor } from '../types';
-import { v4 as uuidv4 } from 'uuid';
 
-const STORAGE_KEY = 'ancestry_ai_data';
-
-// Simple event listener system to mimic real-time updates
-type Listener = (data: Ancestor[]) => void;
-let listeners: Listener[] = [];
-
-const notifyListeners = () => {
-  const data = StorageService.getAll();
-  listeners.forEach(callback => callback(data));
-};
+const COLLECTION_NAME = 'ancestors';
 
 export const StorageService = {
-  // Retrieve all records from LocalStorage
-  getAll: (): Ancestor[] => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (!stored) return [];
-      const parsed: Ancestor[] = JSON.parse(stored);
-      // Sort by dateAdded descending (newest first)
-      return parsed.sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0));
-    } catch (e) {
-      console.error("Failed to parse local storage data", e);
-      return [];
-    }
-  },
-
-  // Subscribe to updates (Mimics Firestore onSnapshot)
-  subscribe: (callback: Listener) => {
-    listeners.push(callback);
-    // Initial data load
-    callback(StorageService.getAll());
+  // Subscribe to updates (Real-time listener)
+  subscribe: (callback: (data: Ancestor[]) => void, onError?: (error: any) => void) => {
+    // Order by dateAdded descending to match previous behavior
+    const q = query(collection(db, COLLECTION_NAME), orderBy('dateAdded', 'desc'));
     
-    // Return unsubscribe function
-    return () => {
-      listeners = listeners.filter(l => l !== callback);
-    };
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const ancestors = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Ancestor));
+      callback(ancestors);
+    }, (error) => {
+      console.error("Firestore subscription error:", error);
+      if (onError) onError(error);
+    });
+
+    return unsubscribe;
   },
 
   // Add new ancestor
   add: async (data: Omit<Ancestor, 'id' | 'dateAdded'>) => {
-    const ancestors = StorageService.getAll();
-    const newId = uuidv4();
-    
-    const newAncestor: Ancestor = {
-      ...data,
-      id: newId,
-      dateAdded: Date.now()
-    };
-
-    const updatedList = [newAncestor, ...ancestors];
     try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
-        notifyListeners();
+      await addDoc(collection(db, COLLECTION_NAME), {
+        ...data,
+        dateAdded: Date.now()
+      });
     } catch (e) {
-        console.error("Storage limit exceeded", e);
-        alert("Storage limit exceeded! Unable to save new ancestor.");
+      console.error("Error adding document: ", e);
+      throw e; // Propagate error to let UI know
     }
   },
 
   // Update ancestor
   update: async (id: string, updates: Partial<Ancestor>) => {
-    const ancestors = StorageService.getAll();
-    const index = ancestors.findIndex(a => a.id === id);
-    
-    if (index !== -1) {
-      ancestors[index] = { ...ancestors[index], ...updates };
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(ancestors));
-        notifyListeners();
-      } catch (e) {
-        console.error("Storage update failed", e);
-      }
+    try {
+      const docRef = doc(db, COLLECTION_NAME, id);
+      // Ensure we don't accidentally try to write the ID field into the document data
+      const { id: _, ...cleanUpdates } = updates as any;
+      await updateDoc(docRef, cleanUpdates);
+    } catch (e) {
+      console.error("Error updating document: ", e);
+      throw e;
     }
   },
 
   // Delete ancestor
   delete: async (id: string) => {
-    const ancestors = StorageService.getAll();
-    const updatedList = ancestors.filter(a => a.id !== id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
-    notifyListeners();
+    try {
+      await deleteDoc(doc(db, COLLECTION_NAME, id));
+    } catch (e) {
+      console.error("Error deleting document: ", e);
+      throw e;
+    }
   },
 
   // Check and Seed initial data if empty
   checkAndSeed: async () => {
-    const data = StorageService.getAll();
-    if (data.length === 0) {
-      const seedData: Ancestor[] = [
-        {
-          id: uuidv4(),
-          name: 'John Doe (Example)',
-          birthYear: 1980,
-          deathYear: null,
-          gender: 'Male',
-          country: 'United States',
-          fatherId: null,
-          motherId: null,
-          notes: 'This is an example record to get you started.',
-          dateAdded: Date.now()
+    try {
+        const q = query(collection(db, COLLECTION_NAME), limit(1));
+        const snapshot = await getDocs(q);
+        
+        if (snapshot.empty) {
+            const seedData: Omit<Ancestor, 'id'> = {
+                name: 'John Doe (Example)',
+                birthYear: 1980,
+                deathYear: null,
+                gender: 'Male',
+                country: 'United States',
+                fatherId: null,
+                motherId: null,
+                notes: 'This is an example record to get you started.',
+                dateAdded: Date.now()
+            };
+            await StorageService.add(seedData);
         }
-      ];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(seedData));
-      notifyListeners();
+    } catch (e: any) {
+        // Suppress permission denied errors in seeding as the main app will show the error screen
+        if (e.code !== 'permission-denied') {
+            console.error("Error seeding data:", e);
+        }
     }
   }
 };

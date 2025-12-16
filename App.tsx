@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Ancestor, AncestorFormData } from './types';
 import { StorageService } from './services/storage';
+import { auth } from './services/firebase';
+import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
 import { generateFamilyReport } from './services/reportGenerator';
 import { AncestorForm } from './components/AncestorForm';
 import { TreeVisualization } from './components/TreeVisualization';
@@ -21,6 +23,11 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   
+  // Auth & Data State
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [dbError, setDbError] = useState<string | null>(null);
+
   // Modals & Overlays
   const [showForm, setShowForm] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
@@ -37,14 +44,49 @@ const App: React.FC = () => {
   // Filters
   const [filteredIds, setFilteredIds] = useState<string[] | null>(null);
 
-  // Load Data
+  // Auth Effect
   useEffect(() => {
-    StorageService.checkAndSeed();
-    const unsubscribe = StorageService.subscribe((data) => {
-        setAncestors(data);
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+        if (u) {
+            setUser(u);
+            setIsAuthLoading(false);
+        } else {
+            // Auto sign-in anonymously
+            signInAnonymously(auth)
+                .catch((error) => {
+                    console.error("Auth Error", error);
+                    setDbError("Authentication failed. Please enable Anonymous Auth in Firebase Console.");
+                    setIsAuthLoading(false);
+                });
+        }
     });
-    return () => unsubscribe();
+    return unsubscribe;
   }, []);
+
+  // Data Loading Effect
+  useEffect(() => {
+    if (!user) return; // Wait for auth
+
+    // Try to seed data (fire and forget)
+    StorageService.checkAndSeed(); 
+
+    // Subscribe to real-time updates
+    const unsubscribe = StorageService.subscribe(
+        (data) => {
+            setAncestors(data);
+            setDbError(null); // Clear previous errors on success
+        },
+        (error: any) => {
+             // Handle permission errors
+             if (error?.code === 'permission-denied') {
+                 setDbError("Access denied. Firestore Rules block this request.");
+             } else {
+                 setDbError(`Connection error: ${error.message}`);
+             }
+        }
+    );
+    return () => unsubscribe();
+  }, [user]);
 
   // Theme Effect
   useEffect(() => {
@@ -92,7 +134,7 @@ const App: React.FC = () => {
     setShowForm(true);
   };
 
-  const handleSaveForm = (data: AncestorFormData) => {
+  const handleSaveForm = async (data: AncestorFormData) => {
     const payload = {
         name: data.name,
         birthYear: data.birthYear ? parseInt(data.birthYear) : null,
@@ -105,26 +147,72 @@ const App: React.FC = () => {
         photoUrl: data.photoUrl
     };
 
-    if (editingId) {
-      StorageService.update(editingId, payload);
-    } else {
-      StorageService.add(payload);
+    try {
+        if (editingId) {
+            await StorageService.update(editingId, payload);
+        } else {
+            await StorageService.add(payload);
+        }
+        setShowForm(false);
+        setEditingId(null);
+        setPrefillData(null);
+    } catch (e) {
+        alert("Failed to save. Check permissions.");
     }
-    setShowForm(false);
-    setEditingId(null);
-    setPrefillData(null);
   };
   
   const handleUpdateAncestor = (id: string, updates: Partial<Ancestor>) => {
-      StorageService.update(id, updates);
+      StorageService.update(id, updates).catch(() => alert("Update failed. Permission denied."));
   };
 
   const handleDeleteAncestor = (id: string) => {
-      StorageService.delete(id);
+      StorageService.delete(id).catch(() => alert("Delete failed. Permission denied."));
       setSelectedAncestorId(null);
   };
 
   const selectedAncestor = ancestors.find(a => a.id === selectedAncestorId);
+
+  // Loading / Error Screen
+  if (isAuthLoading) {
+      return (
+          <div className="h-screen w-full bg-slate-900 flex flex-col items-center justify-center text-white">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mb-4"></div>
+              <p>Authenticating...</p>
+          </div>
+      );
+  }
+
+  if (dbError) {
+      return (
+          <div className="h-screen w-full bg-slate-900 flex flex-col items-center justify-center text-white p-6 text-center">
+              <span className="material-symbols-outlined text-5xl text-red-500 mb-4">gpp_maybe</span>
+              <h2 className="text-2xl font-bold mb-2">Database Access Denied</h2>
+              <p className="text-slate-400 max-w-lg mb-6">{dbError}</p>
+              
+              {dbError.includes('Access denied') && (
+                  <div className="bg-slate-800 p-6 rounded-lg border border-slate-700 max-w-xl w-full text-left">
+                      <p className="text-sm text-slate-300 mb-3 font-semibold">Action Required: Update Firestore Rules</p>
+                      <p className="text-xs text-slate-500 mb-3">
+                          Go to <strong>Firebase Console</strong> &gt; <strong>Firestore Database</strong> &gt; <strong>Rules</strong> and paste this configuration:
+                      </p>
+                      <div className="bg-black/50 p-4 rounded border border-slate-600 font-mono text-xs text-green-400 overflow-x-auto">
+                           <pre>{`rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}`}</pre>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-3">
+                          Ensure <strong>Anonymous Authentication</strong> is enabled in <strong>Authentication</strong> &gt; <strong>Sign-in method</strong>.
+                      </p>
+                  </div>
+              )}
+          </div>
+      );
+  }
 
   return (
     <div className="h-screen w-full bg-slate-50 dark:bg-slate-900 flex flex-col relative overflow-hidden font-sans text-slate-900 dark:text-white transition-colors duration-300">
