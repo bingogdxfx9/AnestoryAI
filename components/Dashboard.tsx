@@ -5,12 +5,13 @@ import { calculateStats } from '../utils/genealogy';
 interface Props {
   ancestors: Ancestor[];
   userName?: string;
+  isReadOnly: boolean;
   onNavigate: (view: string) => void;
   onQuickAction: (action: string) => void;
   onSelectAncestor: (id: string) => void;
 }
 
-export const Dashboard: React.FC<Props> = ({ ancestors, userName = "Michael", onNavigate, onQuickAction, onSelectAncestor }) => {
+export const Dashboard: React.FC<Props> = ({ ancestors, userName = "Michael", isReadOnly, onNavigate, onQuickAction, onSelectAncestor }) => {
   const stats = calculateStats(ancestors);
   
   // Stats calculations
@@ -120,17 +121,28 @@ export const Dashboard: React.FC<Props> = ({ ancestors, userName = "Michael", on
         <div className="grid grid-cols-4 gap-3">
             {[
                 { id: 'analytics', icon: 'health_and_safety', label: 'AI Health', color: 'text-rose-500 dark:text-rose-400', border: 'group-hover:border-rose-500', bg: 'group-hover:bg-rose-500/10' },
-                { id: 'manual-add', icon: 'person_add', label: 'Manual Add', color: 'text-amber-500 dark:text-amber-400', border: 'group-hover:border-amber-500', bg: 'group-hover:bg-amber-500/10' },
+                { id: 'manual-add', icon: 'person_add', label: 'Manual Add', color: 'text-amber-500 dark:text-amber-400', border: 'group-hover:border-amber-500', bg: 'group-hover:bg-amber-500/10', restricted: true },
                 { id: '3d', icon: 'view_in_ar', label: '3D View', color: 'text-purple-500 dark:text-purple-400', border: 'group-hover:border-purple-500', bg: 'group-hover:bg-purple-500/10' },
-                { id: 'smart', icon: 'auto_fix_high', label: 'Smart Add', color: 'text-white', isGradient: true },
+                { id: 'smart', icon: 'auto_fix_high', label: 'Smart Add', color: 'text-white', isGradient: true, restricted: true },
             ].map((action) => (
-                <button key={action.id} onClick={() => onQuickAction(action.id)} className="flex flex-col items-center gap-2 group">
+                <button 
+                    key={action.id} 
+                    onClick={() => onQuickAction(action.id)} 
+                    className={`flex flex-col items-center gap-2 group relative`}
+                >
                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-md transition-all duration-300
                         ${action.isGradient 
                             ? 'bg-gradient-to-br from-primary to-blue-600 shadow-primary/30 group-hover:scale-105' 
                             : `bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 ${action.color} ${action.border} ${action.bg}`
-                        }`}>
+                        }
+                        ${action.restricted && isReadOnly ? 'opacity-70 grayscale-[0.5]' : ''}
+                        `}>
                         <span className="material-symbols-outlined text-2xl">{action.icon}</span>
+                        {action.restricted && isReadOnly && (
+                            <div className="absolute top-0 right-0 p-0.5 bg-slate-900 rounded-full border border-slate-700 shadow-md transform translate-x-1 -translate-y-1">
+                                <span className="material-symbols-outlined text-[10px] text-white">lock</span>
+                            </div>
+                        )}
                     </div>
                     <span className="text-[11px] text-slate-500 dark:text-gray-400 font-medium group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{action.label}</span>
                 </button>

@@ -6,10 +6,11 @@ import { getPredictiveAnalysis, PredictionResult } from '../services/geminiServi
 
 interface Props {
   ancestors: Ancestor[];
+  isReadOnly: boolean;
   onUpdateAncestor?: (id: string, updates: Partial<Ancestor>) => void;
 }
 
-export const AnalyticsDashboard: React.FC<Props> = ({ ancestors, onUpdateAncestor }) => {
+export const AnalyticsDashboard: React.FC<Props> = ({ ancestors, isReadOnly, onUpdateAncestor }) => {
   const histogramRef = useRef<SVGSVGElement>(null);
   
   const duplicates = findPotentialDuplicates(ancestors);
@@ -185,13 +186,16 @@ export const AnalyticsDashboard: React.FC<Props> = ({ ancestors, onUpdateAncesto
                                 </div>
                                 <button 
                                     onClick={() => handleApplyPrediction(pred)}
+                                    disabled={isReadOnly}
                                     className={`mt-3 w-full py-1 text-xs font-bold rounded border transition ${
-                                        isAnomaly
-                                        ? 'bg-white border-red-200 text-red-600 hover:bg-red-100 dark:bg-slate-800 dark:border-red-900 dark:text-red-300'
-                                        : 'bg-white border-indigo-200 text-indigo-600 hover:bg-indigo-100 dark:bg-slate-800 dark:border-indigo-600 dark:text-indigo-300'
+                                        isReadOnly 
+                                        ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed dark:bg-slate-700 dark:border-slate-600 dark:text-gray-500'
+                                        : isAnomaly
+                                            ? 'bg-white border-red-200 text-red-600 hover:bg-red-100 dark:bg-slate-800 dark:border-red-900 dark:text-red-300'
+                                            : 'bg-white border-indigo-200 text-indigo-600 hover:bg-indigo-100 dark:bg-slate-800 dark:border-indigo-600 dark:text-indigo-300'
                                     }`}
                                 >
-                                    Apply Correction
+                                    {isReadOnly ? 'Locked (Admin Only)' : 'Apply Correction'}
                                 </button>
                             </div>
                          )

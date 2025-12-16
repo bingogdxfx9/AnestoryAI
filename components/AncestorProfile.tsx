@@ -4,14 +4,15 @@ import { Ancestor } from '../types';
 interface Props {
   ancestor: Ancestor;
   allAncestors: Ancestor[];
+  isReadOnly: boolean;
   onBack: () => void;
   onEdit: (id: string) => void;
-  onDelete: (id: string) => void; // New prop
+  onDelete: (id: string) => void;
   onNavigateTree: () => void;
   onSelectRelative: (id: string) => void;
 }
 
-export const AncestorProfile: React.FC<Props> = ({ ancestor, allAncestors, onBack, onEdit, onDelete, onNavigateTree, onSelectRelative }) => {
+export const AncestorProfile: React.FC<Props> = ({ ancestor, allAncestors, isReadOnly, onBack, onEdit, onDelete, onNavigateTree, onSelectRelative }) => {
   const father = allAncestors.find(a => a.id === ancestor.fatherId);
   const mother = allAncestors.find(a => a.id === ancestor.motherId);
   const children = allAncestors.filter(a => a.fatherId === ancestor.id || a.motherId === ancestor.id);
@@ -21,10 +22,6 @@ export const AncestorProfile: React.FC<Props> = ({ ancestor, allAncestors, onBac
     : null;
 
   const handleDelete = () => {
-    // Custom modal confirmation could be implemented here, using simple confirm for now as per minimal change requirement, 
-    // but the spec asked for a custom modal. Given the constraints, I will stick to a simpler approach or I would need to add a Modal state here.
-    // For now, I'll assume the parent handles the confirmation or just trigger it.
-    // Actually, let's just confirm here.
     if (window.confirm(`Are you sure you want to delete ${ancestor.name}? This cannot be undone.`)) {
         onDelete(ancestor.id);
         onBack();
@@ -47,14 +44,16 @@ export const AncestorProfile: React.FC<Props> = ({ ancestor, allAncestors, onBac
              <button onClick={onBack} className="p-2 rounded-full bg-black/20 text-white backdrop-blur-md hover:bg-black/40">
                 <span className="material-symbols-outlined">arrow_back</span>
              </button>
-             <div className="flex gap-2">
-                 <button onClick={() => onEdit(ancestor.id)} className="p-2 rounded-full bg-black/20 text-white backdrop-blur-md hover:bg-black/40" title="Edit">
-                    <span className="material-symbols-outlined">edit</span>
-                 </button>
-                 <button onClick={handleDelete} className="p-2 rounded-full bg-black/20 text-red-400 backdrop-blur-md hover:bg-red-900/40 hover:text-red-200" title="Delete">
-                    <span className="material-symbols-outlined">delete</span>
-                 </button>
-             </div>
+             {!isReadOnly && (
+                 <div className="flex gap-2">
+                     <button onClick={() => onEdit(ancestor.id)} className="p-2 rounded-full bg-black/20 text-white backdrop-blur-md hover:bg-black/40" title="Edit">
+                        <span className="material-symbols-outlined">edit</span>
+                     </button>
+                     <button onClick={handleDelete} className="p-2 rounded-full bg-black/20 text-red-400 backdrop-blur-md hover:bg-red-900/40 hover:text-red-200" title="Delete">
+                        <span className="material-symbols-outlined">delete</span>
+                     </button>
+                 </div>
+             )}
         </div>
 
         <div className="absolute -bottom-16 left-0 right-0 flex justify-center z-20">
@@ -87,10 +86,12 @@ export const AncestorProfile: React.FC<Props> = ({ ancestor, allAncestors, onBac
             <span className="material-symbols-outlined text-lg">account_tree</span>
             View Tree
          </button>
-         <button onClick={() => onEdit(ancestor.id)} className="flex-1 bg-primary hover:bg-primary-dark text-white py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition shadow-lg shadow-primary/20">
-            <span className="material-symbols-outlined text-lg">edit_note</span>
-            Edit Profile
-         </button>
+         {!isReadOnly && (
+             <button onClick={() => onEdit(ancestor.id)} className="flex-1 bg-primary hover:bg-primary-dark text-white py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition shadow-lg shadow-primary/20">
+                <span className="material-symbols-outlined text-lg">edit_note</span>
+                Edit Profile
+             </button>
+         )}
       </div>
 
       {/* Details Container */}

@@ -3,10 +3,11 @@ import { Ancestor } from '../types';
 
 interface Props {
   ancestors: Ancestor[];
+  isReadOnly: boolean;
   onImportClick: () => void;
 }
 
-export const RecordVault: React.FC<Props> = ({ ancestors, onImportClick }) => {
+export const RecordVault: React.FC<Props> = ({ ancestors, isReadOnly, onImportClick }) => {
   const [filter, setFilter] = useState('');
   
   const filtered = ancestors.filter(a => 
@@ -72,10 +73,18 @@ export const RecordVault: React.FC<Props> = ({ ancestors, onImportClick }) => {
       </div>
 
       {/* Import CTA */}
-      <button onClick={onImportClick} className="w-full mb-6 bg-surface border border-dashed border-white/20 rounded-xl p-4 flex flex-col items-center justify-center text-gray-400 hover:bg-surface-light/30 transition gap-2">
-           <span className="material-symbols-outlined text-3xl text-gray-500">cloud_upload</span>
-           <span className="text-sm font-medium">Tap to Upload New Record</span>
-      </button>
+      {!isReadOnly && (
+          <button onClick={onImportClick} className="w-full mb-6 bg-surface border border-dashed border-white/20 rounded-xl p-4 flex flex-col items-center justify-center text-gray-400 hover:bg-surface-light/30 transition gap-2">
+               <span className="material-symbols-outlined text-3xl text-gray-500">cloud_upload</span>
+               <span className="text-sm font-medium">Tap to Upload New Record</span>
+          </button>
+      )}
+      {isReadOnly && (
+           <div className="w-full mb-6 bg-surface border border-dashed border-white/10 rounded-xl p-4 flex flex-col items-center justify-center text-gray-500 gap-1 opacity-60">
+               <span className="material-symbols-outlined text-3xl">lock</span>
+               <span className="text-xs font-medium">Uploads restricted to Admin</span>
+          </div>
+      )}
 
       {/* Recent List */}
       <h3 className="text-gray-400 text-xs font-bold uppercase mb-3">Recently Added</h3>

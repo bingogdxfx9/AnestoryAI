@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Ancestor, AncestorFormData } from './types';
 import { StorageService } from './services/storage';
 import { auth } from './services/firebase';
-import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
+import { signInAnonymously, onAuthStateChanged, User, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { generateFamilyReport } from './services/reportGenerator';
 import { AncestorForm } from './components/AncestorForm';
 import { TreeVisualization } from './components/TreeVisualization';
@@ -15,6 +15,7 @@ import { ThreeView } from './components/ThreeView';
 import { DataScrutinizer } from './components/DataScrutinizer';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { ReportGenerationModal } from './components/ReportGenerationModal';
+import { LoginModal } from './components/LoginModal';
 
 type View = 'dashboard' | 'tree' | 'records' | 'profile' | 'search' | 'analytics';
 
@@ -25,6 +26,7 @@ const App: React.FC = () => {
   
   // Auth & Data State
   const [user, setUser] = useState<User | null>(null);
+  const [isAdminLocal, setIsAdminLocal] = useState(false); // Local state for hardcoded admin
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
 
@@ -35,6 +37,7 @@ const App: React.FC = () => {
   const [showThreeView, setShowThreeView] = useState(false);
   const [showScrutinizer, setShowScrutinizer] = useState(false);
   const [showReportGenerator, setShowReportGenerator] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
   
   // Selection State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -51,11 +54,11 @@ const App: React.FC = () => {
             setUser(u);
             setIsAuthLoading(false);
         } else {
-            // Auto sign-in anonymously
+            // Auto sign-in anonymously if no user is present
             signInAnonymously(auth)
                 .catch((error) => {
-                    console.error("Auth Error", error);
-                    setDbError("Authentication failed. Please enable Anonymous Auth in Firebase Console.");
+                    console.warn("Anonymous Auth Warning:", error);
+                    // Don't fail hard on auth network error; try to proceed as guest to see if DB is public
                     setIsAuthLoading(false);
                 });
         }
@@ -65,10 +68,10 @@ const App: React.FC = () => {
 
   // Data Loading Effect
   useEffect(() => {
-    if (!user) return; // Wait for auth
-
-    // Try to seed data (fire and forget)
-    StorageService.checkAndSeed(); 
+    // Only try to seed if we have a user to write with, otherwise we might get permission errors silently or noisily
+    if (user) {
+        StorageService.checkAndSeed(); 
+    }
 
     // Subscribe to real-time updates
     const unsubscribe = StorageService.subscribe(
@@ -110,7 +113,16 @@ const App: React.FC = () => {
     setCurrentView('profile');
   };
 
+  const isAdmin = isAdminLocal || (user && !user.isAnonymous);
+  const isReadOnly = !isAdmin;
+
   const handleQuickAction = (action: string) => {
+    // Permission Check
+    if (isReadOnly && (action === 'manual-add' || action === 'import' || action === 'smart')) {
+        setShowLogin(true); // Prompt login
+        return;
+    }
+
     if (action === 'import') setShowImportWizard(true);
     if (action === '3d') setShowThreeView(true);
     if (action === 'time-travel') setShowTimeTravel(true);
@@ -135,6 +147,11 @@ const App: React.FC = () => {
   };
 
   const handleSaveForm = async (data: AncestorFormData) => {
+    if (isReadOnly) {
+        alert("Action Denied: You must be an admin to modify records.");
+        return;
+    }
+
     // Helper to safely parse numbers, treating NaN/empty as null
     const parseNumber = (val: string) => {
         if (!val) return null;
@@ -178,6 +195,10 @@ const App: React.FC = () => {
   };
   
   const handleUpdateAncestor = (id: string, updates: Partial<Ancestor>) => {
+      if (isReadOnly) {
+          setShowLogin(true);
+          return;
+      }
       StorageService.update(id, updates).catch((e) => {
           if (e.code === 'permission-denied' || e.message?.toLowerCase().includes('permission')) {
               setDbError("Access denied. Unable to update record.");
@@ -188,6 +209,10 @@ const App: React.FC = () => {
   };
 
   const handleDeleteAncestor = (id: string) => {
+      if (isReadOnly) {
+          setShowLogin(true);
+          return;
+      }
       StorageService.delete(id).catch((e) => {
           if (e.code === 'permission-denied' || e.message?.toLowerCase().includes('permission')) {
                setDbError("Access denied. Unable to delete record.");
@@ -196,6 +221,35 @@ const App: React.FC = () => {
           }
       });
       setSelectedAncestorId(null);
+  };
+
+  const handleAdminLogin = async (id: string, pass: string) => {
+    // Normalize input
+    const username = id.trim().toLowerCase();
+    const password = pass.trim();
+
+    // Check for hardcoded credentials first
+    if (username === 'admin' && password === 'password') {
+        setIsAdminLocal(true);
+        setShowLogin(false);
+        return;
+    }
+
+    // Fallback to Firebase Auth
+    try {
+        await signInWithEmailAndPassword(auth, id.trim(), pass.trim());
+        setShowLogin(false);
+    } catch (e) {
+        throw e; // Modal will handle error display
+    }
+  };
+
+  const handleLogout = async () => {
+    if (isAdminLocal) {
+        setIsAdminLocal(false);
+    } else {
+        await signOut(auth);
+    }
   };
 
   const selectedAncestor = ancestors.find(a => a.id === selectedAncestorId);
@@ -249,6 +303,20 @@ service cloud.firestore {
   return (
     <div className="h-screen w-full bg-slate-50 dark:bg-slate-900 flex flex-col relative overflow-hidden font-sans text-slate-900 dark:text-white transition-colors duration-300">
       
+      {/* Admin Login Button */}
+      <button 
+        onClick={() => isAdmin ? handleLogout() : setShowLogin(true)}
+        className="absolute top-4 right-20 z-50 px-3 py-2 rounded-full bg-white/50 dark:bg-white/10 backdrop-blur-md text-slate-700 dark:text-white border border-slate-200 dark:border-white/10 hover:bg-white dark:hover:bg-white/20 transition shadow-sm flex items-center gap-2"
+        title={isAdmin ? "Logout Admin" : "Admin Login"}
+      >
+         <span className="material-symbols-outlined filled-icon text-[20px]">
+            {isAdmin ? 'logout' : 'admin_panel_settings'}
+         </span>
+         <span className="text-xs font-bold hidden sm:inline">
+            {isAdmin ? 'Logout' : 'Admin'}
+         </span>
+      </button>
+
       {/* Theme Toggle Button */}
       <button 
         onClick={toggleTheme}
@@ -265,6 +333,7 @@ service cloud.firestore {
         {currentView === 'dashboard' && (
             <Dashboard 
                 ancestors={ancestors} 
+                isReadOnly={isReadOnly}
                 onNavigate={handleNavigate}
                 onQuickAction={handleQuickAction}
                 onSelectAncestor={handleSelectAncestor}
@@ -301,6 +370,7 @@ service cloud.firestore {
             <AncestorProfile 
                 ancestor={selectedAncestor}
                 allAncestors={ancestors}
+                isReadOnly={isReadOnly}
                 onBack={() => setCurrentView('tree')}
                 onEdit={(id) => { setEditingId(id); setShowForm(true); }}
                 onDelete={handleDeleteAncestor}
@@ -312,6 +382,7 @@ service cloud.firestore {
         {currentView === 'records' && (
             <RecordVault 
                 ancestors={ancestors}
+                isReadOnly={isReadOnly}
                 onImportClick={() => setShowImportWizard(true)}
             />
         )}
@@ -333,6 +404,7 @@ service cloud.firestore {
                      </div>
                      <AnalyticsDashboard 
                         ancestors={ancestors} 
+                        isReadOnly={isReadOnly}
                         onUpdateAncestor={handleUpdateAncestor}
                      />
                  </div>
@@ -408,6 +480,13 @@ service cloud.firestore {
         <ReportGenerationModal 
             ancestors={ancestors}
             onClose={() => setShowReportGenerator(false)}
+        />
+      )}
+
+      {showLogin && (
+        <LoginModal 
+            onLogin={handleAdminLogin}
+            onCancel={() => setShowLogin(false)}
         />
       )}
 
