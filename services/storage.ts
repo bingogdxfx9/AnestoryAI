@@ -1,4 +1,4 @@
-import { db } from './firebase';
+import { db, firebaseConfig } from './firebase';
 import { 
   collection, 
   addDoc, 
@@ -13,7 +13,11 @@ import {
 } from 'firebase/firestore';
 import { Ancestor } from '../types';
 
-const COLLECTION_NAME = 'ancestors';
+// Ensure appId is present to avoid "undefined" in path
+const appId = firebaseConfig.appId || '1:927330435478:web:d0d6c70c99765ae182ddb7';
+
+// Update collection name to match the security rule path: /artifacts/{appId}/public/data/familyTree/
+const COLLECTION_NAME = `artifacts/${appId}/public/data/familyTree`;
 
 export const StorageService = {
   // Subscribe to updates (Real-time listener)
@@ -28,7 +32,10 @@ export const StorageService = {
       } as Ancestor));
       callback(ancestors);
     }, (error) => {
-      console.error("Firestore subscription error:", error);
+      // Pass error to callback without logging to console here if it's permission-denied
+      if (error.code !== 'permission-denied') {
+          console.error("Firestore subscription error:", error);
+      }
       if (onError) onError(error);
     });
 
@@ -42,8 +49,10 @@ export const StorageService = {
         ...data,
         dateAdded: Date.now()
       });
-    } catch (e) {
-      console.error("Error adding document: ", e);
+    } catch (e: any) {
+      if (e.code !== 'permission-denied') {
+        console.error("Error adding document: ", e);
+      }
       throw e; // Propagate error to let UI know
     }
   },
@@ -55,8 +64,10 @@ export const StorageService = {
       // Ensure we don't accidentally try to write the ID field into the document data
       const { id: _, ...cleanUpdates } = updates as any;
       await updateDoc(docRef, cleanUpdates);
-    } catch (e) {
-      console.error("Error updating document: ", e);
+    } catch (e: any) {
+      if (e.code !== 'permission-denied') {
+        console.error("Error updating document: ", e);
+      }
       throw e;
     }
   },
@@ -65,8 +76,10 @@ export const StorageService = {
   delete: async (id: string) => {
     try {
       await deleteDoc(doc(db, COLLECTION_NAME, id));
-    } catch (e) {
-      console.error("Error deleting document: ", e);
+    } catch (e: any) {
+      if (e.code !== 'permission-denied') {
+        console.error("Error deleting document: ", e);
+      }
       throw e;
     }
   },
@@ -93,6 +106,7 @@ export const StorageService = {
         }
     } catch (e: any) {
         // Suppress permission denied errors in seeding as the main app will show the error screen
+        // This prevents the specific "Error adding document" from cluttering the console if auth/rules aren't ready
         if (e.code !== 'permission-denied') {
             console.error("Error seeding data:", e);
         }

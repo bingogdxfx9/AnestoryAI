@@ -21,8 +21,11 @@ const fallbackConfig = {
   measurementId: "G-8MCRGVK47Q"
 };
 
-// Use injected config or fallback
-const firebaseConfig = window.__firebase_config || fallbackConfig;
+// Use injected config merged with fallback to ensure critical keys like appId exist
+export const firebaseConfig = {
+  ...fallbackConfig,
+  ...(window.__firebase_config || {})
+};
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
